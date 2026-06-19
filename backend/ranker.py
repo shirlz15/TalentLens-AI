@@ -220,29 +220,86 @@ def rank_candidates(
 def generate_explanation(
     technical: ScoreResult,
     experience: ScoreResult,
+    career_consistency: ScoreResult,
+    skill_cluster: ScoreResult,
     behavioral: BehavioralScore,
     authenticity: ScoreResult,
     final_score: float,
+    strengths: list[str] | None = None,
+    risks: list[str] | None = None,
 ) -> str:
-    """Create a compact human-readable ranking explanation."""
+    """Create a recruiter-facing explanation for why the candidate ranked here."""
 
     strongest = max(
         (
             ("technical fit", technical.score),
             ("experience", experience.score),
+            ("career consistency", career_consistency.score),
             ("behavioral signals", behavioral.score),
             ("authenticity", authenticity.score),
         ),
         key=lambda item: item[1],
     )
-    concerns = technical.gaps[:2] + experience.gaps[:1] + behavioral.risk_signals[:1] + authenticity.gaps[:1]
-    concern_text = f" Key concerns: {'; '.join(concerns)}." if concerns else ""
+    strength_text = f" Strengths: {'; '.join((strengths or [])[:3])}." if strengths else ""
+    risk_text = f" Risks: {'; '.join((risks or [])[:3])}." if risks else ""
+    cluster_text = (
+        f" Skill cluster bonus: +{skill_cluster.score:.2f} for {skill_cluster.evidence[0]}."
+        if skill_cluster.score > 0 and skill_cluster.evidence
+        else ""
+    )
 
     return (
-        f"Final score {final_score:.2f}. Strongest dimension is {strongest[0]} ({strongest[1]:.2f}). "
-        f"{technical.explanation} {experience.explanation} {behavioral.explanation}"
-        f"{concern_text}"
+        f"Ranked on a {final_score:.2f} final score. Strongest dimension is {strongest[0]} "
+        f"({strongest[1]:.2f}). {technical.explanation} {experience.explanation} "
+        f"{career_consistency.explanation} {behavioral.explanation}{cluster_text}"
+        f"{strength_text}{risk_text}"
     ).strip()
+
+
+def candidate_strengths(
+    technical: ScoreResult,
+    experience: ScoreResult,
+    career_consistency: ScoreResult,
+    skill_cluster: ScoreResult,
+    behavioral: BehavioralScore,
+    authenticity: ScoreResult,
+) -> list[str]:
+    """Select the most recruiter-useful strengths from all dimensions."""
+
+    strengths: list[str] = []
+    strengths.extend(technical.evidence[:3])
+    if experience.score >= 75:
+        strengths.extend(experience.evidence[:2])
+    if career_consistency.score >= 70:
+        strengths.extend(career_consistency.evidence[:2])
+    if skill_cluster.score > 0:
+        strengths.extend(skill_cluster.evidence[:2])
+    strengths.extend(behavioral.positive_signals[:3])
+    if authenticity.score >= 75:
+        strengths.extend(authenticity.evidence[:3])
+    return _dedupe(strengths)[:8]
+
+
+def candidate_risks(
+    technical: ScoreResult,
+    experience: ScoreResult,
+    career_consistency: ScoreResult,
+    behavioral: BehavioralScore,
+    authenticity: ScoreResult,
+) -> list[str]:
+    """Select the most decision-relevant risks from all dimensions."""
+
+    risks: list[str] = []
+    risks.extend(technical.gaps[:3])
+    risks.extend(experience.gaps[:2])
+    risks.extend(career_consistency.gaps[:3])
+    risks.extend(behavioral.risk_signals[:3])
+    risks.extend(authenticity.gaps[:3])
+
+    risk_level = authenticity.metadata.get("risk_level")
+    if risk_level in {"high", "critical"}:
+        risks.insert(0, f"Authenticity risk level is {risk_level}")
+    return _dedupe(risks)[:8]
 
 
 def load_candidates_jsonl(path: str | Path) -> list[dict[str, Any]]:
@@ -324,6 +381,8 @@ def _ensure_requirements(job_description: str | JobRequirements | dict[str, Any]
 def _combine_scores(
     technical: ScoreResult,
     experience: ScoreResult,
+    career_consistency: ScoreResult,
+    skill_cluster: ScoreResult,
     behavioral: BehavioralScore,
     authenticity: ScoreResult,
     weights: dict[str, float],
@@ -331,10 +390,12 @@ def _combine_scores(
     value = (
         technical.score * weights["technical_fit"]
         + experience.score * weights["experience"]
+        + career_consistency.score * weights["career_consistency"]
         + behavioral.score * weights["behavioral"]
         + authenticity.score * weights["authenticity"]
+        + skill_cluster.score
     )
-    return round(value, 2)
+    return round(min(100.0, value), 2)
 
 
 def _normalize_weights(weights: dict[str, float]) -> dict[str, float]:
@@ -343,6 +404,18 @@ def _normalize_weights(weights: dict[str, float]) -> dict[str, float]:
     if total <= 0:
         return DEFAULT_WEIGHTS
     return {key: value / total for key, value in complete.items()}
+
+
+def _dedupe(values: Iterable[str]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        cleaned = str(value).strip()
+        key = cleaned.lower()
+        if cleaned and key not in seen:
+            seen.add(key)
+            result.append(cleaned)
+    return result
 
 
 def _candidate_id(candidate: dict[str, Any]) -> str:
