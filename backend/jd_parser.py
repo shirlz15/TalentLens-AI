@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 """Job description parsing utilities for TalentLens AI.
 
 The parser is intentionally deterministic: challenge submissions should be
@@ -198,3 +199,6 @@ def _contains_phrase(text: str, phrase: str) -> bool:
 
 def _normalize_text(text: str) -> str:
     return re.sub(r"\s+", " ", text.lower()).strip()
+=======
+
+>>>>>>> 924a5b14fb6eb352666c781b20c0a7887ab2e0e7

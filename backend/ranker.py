@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 """Ranking pipeline for TalentLens AI.
 
 This module can be used as a library or as a small CLI:
@@ -473,3 +474,6 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+=======
+
+>>>>>>> 924a5b14fb6eb352666c781b20c0a7887ab2e0e7

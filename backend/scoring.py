@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 """Candidate scoring primitives for TalentLens AI."""
 
 from __future__ import annotations
@@ -626,3 +627,6 @@ def _generic_profile_penalty(candidate: dict[str, Any]) -> float:
 
 def _clamp(value: float, lower: float = 0.0, upper: float = 100.0) -> float:
     return max(lower, min(upper, value))
+=======
+
+>>>>>>> 924a5b14fb6eb352666c781b20c0a7887ab2e0e7
