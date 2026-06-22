@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Candidate Intelligence Card — TalentLens AI</title>
+<meta name="description" content="360° AI-generated candidate intelligence card with scores, strengths, risks, and recruiter reasoning."/>
+<link rel="stylesheet" href="styles.css"/>
+<style>
+.card-page { padding: 40px 0 80px; }
+
+/* ── HERO CARD ── */
+.candidate-hero {
+  padding: 40px; border-radius: var(--radius-lg); position: relative; overflow: hidden;
+  margin-bottom: 28px;
+}
+.candidate-hero::before {
+  content:''; position: absolute; inset: 0;
+  background: var(--c-gradient, var(--gradient-1));
+  opacity: 0.08; pointer-events: none;
+}
+.hero-top { display: flex; gap: 28px; align-items: flex-start; flex-wrap: wrap; }
+.hero-info { flex: 1; min-width: 200px; }
+.hero-name { font-family:'Space Grotesk',sans-serif; font-size: clamp(24px,4vw,36px); font-weight: 800; margin-bottom: 6px; }
+.hero-meta { color: var(--text-secondary); font-size: 15px; margin-bottom: 16px; }
+.hero-tags { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
+
+/* ── SCORE GRID ── */
+.score-grid { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 32px; }
+.score-item { text-align: center; }
+.score-item .score-label { font-size: 11px; color: var(--text-muted); margin-top: 6px; }
+
+/* ── DIMENSION CARD ── */
+.dimension-card {
+  padding: 24px; border-radius: var(--radius);
+  background: var(--bg-card); border: 1px solid var(--border); height: 100%;
+}
+.dimension-title { font-size: 13px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing:.07em; margin-bottom: 8px; }
+.dimension-value { font-family:'Space Grotesk',sans-serif; font-size: 32px; font-weight: 800; margin-bottom: 12px; }
+.dimension-bar { margin-bottom: 12px; }
+.dimension-insight { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+
+/* ── INSIGHT BOX ── */
+.insight-box {
+  padding: 20px 24px; border-radius: var(--radius);
+  margin-bottom: 16px; position: relative;
+}
+.insight-box.purple { background: rgba(139,92,246,0.08); border: 1px solid rgba(139,92,246,0.25); }
+.insight-box.green { background: rgba(16,185,129,0.08); border: 1px solid rgba(16,185,129,0.25); }
+.insight-box.amber { background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.25); }
+.insight-box.red { background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.25); }
+.insight-box .ib-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing:.08em; margin-bottom: 8px; }
+.insight-box.purple .ib-label { color: var(--purple); }
+.insight-box.green .ib-label { color: var(--green); }
+.insight-box.amber .ib-label { color: var(--amber); }
+.insight-box.red .ib-label { color: var(--red); }
+.insight-box .ib-text { font-size: 14px; color: var(--text-secondary); line-height: 1.7; }
+
+/* ── CAREER TIMELINE ── */
+.timeline { display: flex; flex-direction: column; gap: 0; }
+.tl-item { display: flex; gap: 20px; padding: 16px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+.tl-item:last-child { border-bottom: none; }
+.tl-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--purple); flex-shrink: 0; margin-top: 5px; position: relative; }
+.tl-dot::after { content:''; position: absolute; left:5px; top:12px; width:2px; height:calc(100% + 12px); background: rgba(139,92,246,0.3); }
+.tl-item:last-child .tl-dot::after { display: none; }
+.tl-role { font-size: 14px; font-weight: 600; }
+.tl-company { font-size: 13px; color: var(--text-muted); }
+.tl-dur { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
+
+/* ── NAV ARROWS ── */
+.cand-nav { display: flex; gap: 12px; align-items: center; margin-bottom: 24px; }
+.cand-nav a { color: var(--text-secondary); text-decoration: none; font-size: 14px; transition: var(--transition); }
+.cand-nav a:hover { color: var(--text-primary); }
+.cand-nav .sep { color: var(--text-muted); }
+
+/* ── COMPARE FLOAT BTN ── */
+.compare-float {
+  position: fixed; bottom: 32px; right: 32px; z-index: 200;
+}
+</style>
+</head>
+<body>
+<canvas id="bgCanvas"></canvas>
+<div class="page-overlay page-wrapper">
+  <div id="navPlaceholder"></div>
+  <div class="container card-page">
+    <div class="cand-nav animate-fade-in">
+      <a href="dashboard.html">← Rankings</a>
+      <span class="sep">/</span>
+      <span style="color:var(--text-primary)" id="breadName">Candidate</span>
+    </div>
+
+    <div id="cardContent"></div>
+  </div>
+  <div id="footerPlaceholder"></div>
+</div>
+
+<div class="compare-float">
+  <a href="comparison.html" class="btn btn-primary animate-pulse-glow">⚡ Compare Candidates</a>
+</div>
+
+<script src="app.js"></script>
+<script>
+document.getElementById('navPlaceholder').innerHTML = buildNav('dashboard.html');
+document.getElementById('footerPlaceholder').innerHTML = buildFooter();
+initNetworkCanvas();
+
+const params = new URLSearchParams(location.search);
+const id = parseInt(params.get('id')) || 1;
+const cardCandidates = getCandidateDatabase();
+const c = cardCandidates.find(x => x.id === id) || cardCandidates[0];
+const hiringConfidence = getHiringConfidence(c);
+const hiddenGemScore = getHiddenGemScore(c);
+const recruiterDecision = getRecruiterDecision(c);
+const confidenceLevel = getConfidenceLevel(hiringConfidence);
+
+document.getElementById('breadName').textContent = c.name;
+document.title = `${c.name} — TalentLens AI`;
+
+function buildCard(c) {
+  return `
+  <!-- HERO -->
+  <div class="glass candidate-hero animate-slide-up" style="--c-gradient:${c.gradient};">
+    <div class="hero-top">
+      <div class="avatar avatar-xl" style="background:${c.gradient};">${c.initials}</div>
+      <div class="hero-info">
+        <div class="hero-name">${c.name} ${c.hiddenGem?'<span class="gem-badge" style="font-size:12px;vertical-align:middle;">💎 Hidden Gem</span>':''}</div>
+        <div class="hero-meta">${c.role} &middot; ${c.company} &middot; 📍 ${c.location}</div>
+        <div class="hero-tags">
+          <span class="badge badge-purple">${c.experience} yrs exp</span>
+          <span class="badge ${c.riskLevel==='Low'?'badge-green':'badge-amber'}">${c.riskLevel} Risk</span>
+          <span class="badge badge-blue">${c.education}</span>
+          <span class="badge ${c.source==='User Added'?'badge-electric':'badge-purple'}">${c.source || 'Built-In'}</span>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;">
+          ${c.skills.map(s=>`<span class="tag tag-skill">${s}</span>`).join('')}
+        </div>
+      </div>
+      <div style="text-align:center;">
+        ${buildScoreRing(c.finalScore, 100, 8)}
+        <div class="score-label" style="font-size:13px;font-weight:600;color:var(--text-secondary);">Final Score</div>
+      </div>
+    </div>
+    <!-- Score grid -->
+    <div class="score-grid" style="margin-top:28px;justify-content:flex-start;">
+      ${[['Technical',c.technicalScore],['Experience',c.experienceScore],['Behavioral',c.behavioralScore],['Authenticity',c.authenticityScore],['Cognitive Twin',c.cognitiveTwinScore],['Hidden Gem',hiddenGemScore],['Hiring Confidence',hiringConfidence]].map(([l,v])=>`
+        <div class="score-item">
+          ${buildScoreRing(v,68,5)}
+          <div class="score-label">${l}</div>
+        </div>`).join('')}
+    </div>
+  </div>
+
+  <!-- DIMENSIONS GRID -->
+  <div class="grid-3 animate-slide-up delay-1" style="margin-bottom:28px;">
+    <div class="dimension-card">
+      <div class="dimension-title">⚡ Technical Fit</div>
+      <div class="dimension-value" style="color:${getScoreColor(c.technicalScore)};">${c.technicalScore}</div>
+      <div class="dimension-bar">${buildProgressBar(c.technicalScore)}</div>
+      <p class="dimension-insight">Strong alignment with JD technical requirements. Core skills verified across multiple signals.</p>
+    </div>
+    <div class="dimension-card">
+      <div class="dimension-title">📈 Experience Depth</div>
+      <div class="dimension-value" style="color:${getScoreColor(c.experienceScore)};">${c.experienceScore}</div>
+      <div class="dimension-bar">${buildProgressBar(c.experienceScore,'blue')}</div>
+      <p class="dimension-insight">${c.experience} years of progressive experience. Career trajectory shows consistent upward momentum.</p>
+    </div>
+    <div class="dimension-card">
+      <div class="dimension-title">🧠 Behavioral Signal</div>
+      <div class="dimension-value" style="color:${getScoreColor(c.behavioralScore)};">${c.behavioralScore}</div>
+      <div class="dimension-bar">${buildProgressBar(c.behavioralScore,'green')}</div>
+      <p class="dimension-insight">Leadership and collaboration signals detected through project descriptions and team size indicators.</p>
+    </div>
+    <div class="dimension-card">
+      <div class="dimension-title">🔍 Authenticity Score</div>
+      <div class="dimension-value" style="color:${getScoreColor(c.authenticityScore)};">${c.authenticityScore}</div>
+      <div class="dimension-bar">${buildProgressBar(c.authenticityScore)}</div>
+      <p class="dimension-insight">${c.authenticityRisk}</p>
+    </div>
+    <div class="dimension-card">
+      <div class="dimension-title">💡 Career Consistency</div>
+      <div class="dimension-value" style="color:${getScoreColor(c.careerConsistency)};">${c.careerConsistency}</div>
+      <div class="dimension-bar">${buildProgressBar(c.careerConsistency,'blue')}</div>
+      <p class="dimension-insight">Job transitions align logically with career growth. No unexplained gaps detected.</p>
+    </div>
+    <div class="dimension-card">
+      <div class="dimension-title">🚀 Growth Potential</div>
+      <div class="dimension-value" style="color:${getScoreColor(c.growthPotential)};">${c.growthPotential}</div>
+      <div class="dimension-bar">${buildProgressBar(c.growthPotential,'green')}</div>
+      <p class="dimension-insight">Learning velocity and skill acquisition rate suggest strong future performance ceiling.</p>
+    </div>
+  </div>
+
+  <!-- INSIGHTS COL -->
+  <div class="grid-2 animate-slide-up delay-2" style="margin-bottom:28px;align-items:start;">
+    <div>
+      <div class="glass" style="padding:28px;margin-bottom:20px;">
+        <h3 style="font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700;margin-bottom:16px;">✅ Strengths</h3>
+        ${c.strengths.map((s,i)=>`
+          <div style="display:flex;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.04);">
+            <div style="width:24px;height:24px;border-radius:8px;background:rgba(16,185,129,0.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:12px;">✓</div>
+            <span style="font-size:14px;color:var(--text-secondary);">${s}</span>
+          </div>`).join('')}
+      </div>
+      <div class="glass" style="padding:28px;">
+        <h3 style="font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700;margin-bottom:16px;">⚠️ Watch-outs</h3>
+        ${c.weaknesses.map(s=>`
+          <div style="display:flex;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.04);">
+            <div style="width:24px;height:24px;border-radius:8px;background:rgba(245,158,11,0.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:12px;">⚠</div>
+            <span style="font-size:14px;color:var(--text-secondary);">${s}</span>
+          </div>`).join('')}
+      </div>
+    </div>
+    <div>
+      <div class="insight-box purple" style="margin-bottom:16px;">
+        <div class="ib-label">🧠 Why Ranked Here</div>
+        <p class="ib-text">${c.whyRanked}</p>
+      </div>
+      <div class="insight-box green" style="margin-bottom:16px;">
+        <div class="ib-label">🤝 Recruiter Reasoning</div>
+        <p class="ib-text">${c.recruiterReasoning}</p>
+      </div>
+      <div class="insight-box ${c.riskLevel==='Low'?'green':'amber'}">
+        <div class="ib-label">🔍 Authenticity Risk</div>
+        <p class="ib-text">${c.authenticityRisk}</p>
+      </div>
+      <div class="insight-box purple">
+        <div class="ib-label">Recruiter Decision</div>
+        <p class="ib-text">${recruiterDecision} · ${confidenceLevel} hiring confidence (${hiringConfidence}/100). ${getExecutiveSummary(c)}</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- CAREER TIMELINE -->
+  <div class="glass animate-slide-up delay-3" style="padding:32px;margin-bottom:28px;">
+    <h3 style="font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700;margin-bottom:24px;">📅 Career Timeline</h3>
+    <div class="timeline">
+      <div class="tl-item"><div class="tl-dot"></div><div><div class="tl-role">${c.role}</div><div class="tl-company">${c.company}</div><div class="tl-dur">2023 – Present · ${Math.min(c.experience,2)} yrs</div></div></div>
+      <div class="tl-item"><div class="tl-dot"></div><div><div class="tl-role">Mid-Level Engineer</div><div class="tl-company">Previous Company</div><div class="tl-dur">2021 – 2023 · 2 yrs</div></div></div>
+      <div class="tl-item"><div class="tl-dot"></div><div><div class="tl-role">Junior Engineer</div><div class="tl-company">Startup / Early Role</div><div class="tl-dur">2019 – 2021 · 2 yrs</div></div></div>
+      <div class="tl-item"><div class="tl-dot"></div><div><div class="tl-role">${c.education.split('·')[1]?.trim() || 'Degree'}</div><div class="tl-company">${c.education.split('·')[0]?.trim()}</div><div class="tl-dur">Graduated</div></div></div>
+    </div>
+  </div>
+
+  <div class="glass animate-slide-up delay-3" style="padding:32px;margin-bottom:28px;">
+    <h3 style="font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700;margin-bottom:18px;">Parsed Profile Evidence</h3>
+    <div class="grid-3">
+      <div><div class="dimension-title">Projects</div><p class="dimension-insight">${(c.projects || []).join('; ') || 'No structured projects extracted'}</p></div>
+      <div><div class="dimension-title">Education</div><p class="dimension-insight">${c.education || 'Not available'}</p></div>
+      <div><div class="dimension-title">Certifications</div><p class="dimension-insight">${(c.certifications || []).join('; ') || 'No certifications extracted'}</p></div>
+      <div><div class="dimension-title">LinkedIn</div><p class="dimension-insight">${c.linkedin || 'Not available'}</p></div>
+      <div><div class="dimension-title">GitHub</div><p class="dimension-insight">${c.github || 'Not available'}</p></div>
+      <div><div class="dimension-title">Recruiter Recommendation</div><p class="dimension-insight">${recruiterDecision}. ${confidenceLevel} hiring confidence based on profile completeness, consistency, and signal quality.</p></div>
+    </div>
+  </div>
+
+  <!-- ACTIONS -->
+  <div style="display:flex;gap:16px;flex-wrap:wrap;" class="animate-slide-up delay-4">
+    <a href="comparison.html?a=${c.id}" class="btn btn-primary btn-lg">⚡ Compare with Another</a>
+    <a href="dashboard.html" class="btn btn-secondary btn-lg">← Back to Rankings</a>
+  </div>`;
+}
+
+document.getElementById('cardContent').innerHTML = buildCard(c);
+setTimeout(animateProgressBars, 200);
+</script>
+</body>
+</html>

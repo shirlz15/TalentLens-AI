@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 """Ranking pipeline for TalentLens AI.
 
 This module can be used as a library or as a small CLI:
@@ -21,34 +20,63 @@ from typing import Any, Iterable
 try:
     from .jd_parser import JobRequirements, parse_job_description
     from .scoring import (
+        DEFAULT_SCORING_CONFIG,
         ScoreResult,
+        ScoringConfig,
         authenticity_score,
         career_consistency_score,
         experience_score,
+        hidden_gem_score,
+        recruiter_cognitive_twin_score,
         skill_cluster_bonus,
         technical_fit_score,
     )
-    from .signal_engine import BehavioralScore, compute_behavioral_score
+    from .signal_engine import BehavioralConfig, BehavioralScore, DEFAULT_BEHAVIORAL_CONFIG, compute_behavioral_score
 except ImportError:  # pragma: no cover - supports direct script execution
     from jd_parser import JobRequirements, parse_job_description
     from scoring import (
+        DEFAULT_SCORING_CONFIG,
         ScoreResult,
+        ScoringConfig,
         authenticity_score,
         career_consistency_score,
         experience_score,
+        hidden_gem_score,
+        recruiter_cognitive_twin_score,
         skill_cluster_bonus,
         technical_fit_score,
     )
-    from signal_engine import BehavioralScore, compute_behavioral_score
+    from signal_engine import BehavioralConfig, BehavioralScore, DEFAULT_BEHAVIORAL_CONFIG, compute_behavioral_score
 
 
-DEFAULT_WEIGHTS = {
-    "technical_fit": 0.34,
-    "experience": 0.20,
-    "career_consistency": 0.11,
-    "behavioral": 0.20,
-    "authenticity": 0.15,
-}
+@dataclass(frozen=True)
+class RankingConfig:
+    """Configurable ranking knobs for recruiter-intelligence scoring."""
+
+    score_weights: dict[str, float] = field(
+        default_factory=lambda: {
+            "technical_fit": 0.34,
+            "experience": 0.20,
+            "career_consistency": 0.11,
+            "behavioral": 0.20,
+            "authenticity": 0.15,
+        }
+    )
+    scoring: ScoringConfig = DEFAULT_SCORING_CONFIG
+    behavioral: BehavioralConfig = DEFAULT_BEHAVIORAL_CONFIG
+    max_strengths: int = 8
+    max_weaknesses: int = 8
+    append_intelligence_export_fields: bool = True
+
+    @property
+    def weights(self) -> dict[str, float]:
+        """Backward-compatible alias for earlier callers."""
+
+        return self.score_weights
+
+
+DEFAULT_CONFIG = RankingConfig()
+DEFAULT_WEIGHTS = DEFAULT_CONFIG.score_weights
 
 DEFAULT_OUTPUT_FIELDS = [
     "candidate_id",
@@ -61,10 +89,23 @@ DEFAULT_OUTPUT_FIELDS = [
     "behavioral_score",
     "authenticity_score",
     "authenticity_risk_level",
+    "recruiter_cognitive_twin_score",
+    "recruiter_reasoning",
+    "hidden_gem_score",
+    "hidden_gem_flag",
+    "hidden_gem_reason",
+    "recruiter_decision",
+    "recruiter_decision_reason",
+    "hiring_confidence_score",
+    "confidence_level",
+    "executive_recruiter_summary",
     "explanation",
     "why_ranked",
     "candidate_strengths",
     "candidate_risks",
+    "weaknesses",
+    "intelligence_card",
+    "score_breakdown",
 ]
 
 
@@ -79,12 +120,19 @@ class RankedCandidate:
     skill_cluster: ScoreResult
     behavioral: BehavioralScore
     authenticity: ScoreResult
+    recruiter_cognitive_twin: ScoreResult
+    hidden_gem: ScoreResult
+    recruiter_decision: dict[str, Any]
+    hiring_confidence: ScoreResult
+    executive_recruiter_summary: str
     explanation: str
     strengths: list[str]
     risks: list[str]
     raw_candidate: dict[str, Any] = field(repr=False)
 
     def to_row(self, headers: Iterable[str] | None = None) -> dict[str, Any]:
+        card = self.intelligence_card()
+        breakdown = score_breakdown(self)
         row = {
             "candidate_id": self.candidate_id,
             "id": self.candidate_id,
@@ -100,6 +148,17 @@ class RankedCandidate:
             "redrob_score": self.behavioral.score,
             "authenticity_score": self.authenticity.score,
             "authenticity_risk_level": self.authenticity.metadata.get("risk_level", ""),
+            "risk_level": self.authenticity.metadata.get("risk_level", ""),
+            "recruiter_cognitive_twin_score": self.recruiter_cognitive_twin.score,
+            "recruiter_reasoning": self.recruiter_cognitive_twin.metadata.get("recruiter_reasoning", ""),
+            "hidden_gem_score": self.hidden_gem.score,
+            "hidden_gem_flag": self.hidden_gem.metadata.get("hidden_gem_flag", False),
+            "hidden_gem_reason": self.hidden_gem.metadata.get("hidden_gem_reason", ""),
+            "recruiter_decision": self.recruiter_decision.get("decision", ""),
+            "recruiter_decision_reason": self.recruiter_decision.get("reason", ""),
+            "hiring_confidence_score": self.hiring_confidence.score,
+            "confidence_level": self.hiring_confidence.metadata.get("confidence_level", ""),
+            "executive_recruiter_summary": self.executive_recruiter_summary,
             "explanation": self.explanation,
             "summary": self.explanation,
             "why_ranked": self.explanation,
@@ -107,6 +166,9 @@ class RankedCandidate:
             "strengths": "; ".join(self.strengths),
             "candidate_risks": "; ".join(self.risks),
             "risks": "; ".join(self.risks),
+            "weaknesses": "; ".join(self.risks),
+            "intelligence_card": json.dumps(card, sort_keys=True),
+            "score_breakdown": json.dumps(breakdown, sort_keys=True),
             "matched_skills": ", ".join(self.technical_fit.metadata.get("matched_skills", [])),
             "missing_skills": ", ".join(self.technical_fit.metadata.get("missing_skills", [])),
         }
@@ -117,6 +179,7 @@ class RankedCandidate:
         return {field: row.get(field, _candidate_value(self.raw_candidate, field)) for field in headers}
 
     def to_dict(self) -> dict[str, Any]:
+        card = self.intelligence_card()
         return {
             "candidate_id": self.candidate_id,
             "rank": self.rank,
@@ -127,11 +190,52 @@ class RankedCandidate:
             "skill_cluster": self.skill_cluster.to_dict(),
             "behavioral": self.behavioral.to_dict(),
             "authenticity": self.authenticity.to_dict(),
+            "recruiter_cognitive_twin": self.recruiter_cognitive_twin.to_dict(),
+            "hidden_gem": self.hidden_gem.to_dict(),
             "authenticity_risk_level": self.authenticity.metadata.get("risk_level", ""),
+            "recruiter_cognitive_twin_score": self.recruiter_cognitive_twin.score,
+            "recruiter_reasoning": self.recruiter_cognitive_twin.metadata.get("recruiter_reasoning", ""),
+            "hidden_gem_score": self.hidden_gem.score,
+            "hidden_gem_flag": self.hidden_gem.metadata.get("hidden_gem_flag", False),
+            "hidden_gem_reason": self.hidden_gem.metadata.get("hidden_gem_reason", ""),
+            "recruiter_decision": self.recruiter_decision,
+            "hiring_confidence": self.hiring_confidence.to_dict(),
+            "hiring_confidence_score": self.hiring_confidence.score,
+            "confidence_level": self.hiring_confidence.metadata.get("confidence_level", ""),
+            "executive_recruiter_summary": self.executive_recruiter_summary,
             "explanation": self.explanation,
             "why_ranked": self.explanation,
             "candidate_strengths": self.strengths,
             "candidate_risks": self.risks,
+            "weaknesses": self.risks,
+            "score_breakdown": score_breakdown(self),
+            "intelligence_card": card,
+        }
+
+    def intelligence_card(self) -> dict[str, Any]:
+        return {
+            "candidate_id": self.candidate_id,
+            "final_score": self.final_score,
+            "technical_score": self.technical_fit.score,
+            "experience_score": self.experience.score,
+            "behavioral_score": self.behavioral.score,
+            "authenticity_score": self.authenticity.score,
+            "career_consistency_score": self.career_consistency.score,
+            "recruiter_cognitive_twin_score": self.recruiter_cognitive_twin.score,
+            "hidden_gem_score": self.hidden_gem.score,
+            "hidden_gem_flag": self.hidden_gem.metadata.get("hidden_gem_flag", False),
+            "recruiter_decision": self.recruiter_decision.get("decision", ""),
+            "recruiter_decision_reason": self.recruiter_decision.get("reason", ""),
+            "hiring_confidence_score": self.hiring_confidence.score,
+            "confidence_level": self.hiring_confidence.metadata.get("confidence_level", ""),
+            "risk_level": self.authenticity.metadata.get("risk_level", ""),
+            "strengths": self.strengths,
+            "weaknesses": self.risks,
+            "why_ranked": self.explanation,
+            "recruiter_reasoning": self.recruiter_cognitive_twin.metadata.get("recruiter_reasoning", ""),
+            "hidden_gem_reason": self.hidden_gem.metadata.get("hidden_gem_reason", ""),
+            "executive_recruiter_summary": self.executive_recruiter_summary,
+            "score_breakdown": score_breakdown(self),
         }
 
 
@@ -139,23 +243,53 @@ def rank_candidates(
     candidates: list[dict[str, Any]],
     job_description: str | JobRequirements | dict[str, Any],
     weights: dict[str, float] | None = None,
+    config: RankingConfig | None = None,
 ) -> list[RankedCandidate]:
     """Score and rank candidates for a job description."""
 
+    active_config = config or DEFAULT_CONFIG
     requirements = _ensure_requirements(job_description)
-    active_weights = _normalize_weights(weights or DEFAULT_WEIGHTS)
+    active_weights = _normalize_weights(weights or active_config.score_weights, active_config)
     scored: list[RankedCandidate] = []
 
     for candidate in candidates:
-        technical = technical_fit_score(candidate, requirements)
-        experience = experience_score(candidate, requirements)
-        consistency = career_consistency_score(candidate)
-        cluster = skill_cluster_bonus(candidate, requirements)
-        behavioral = compute_behavioral_score(candidate)
-        authenticity = authenticity_score(candidate)
-        final_score = _combine_scores(technical, experience, consistency, cluster, behavioral, authenticity, active_weights)
-        strengths = candidate_strengths(technical, experience, consistency, cluster, behavioral, authenticity)
-        risks = candidate_risks(technical, experience, consistency, behavioral, authenticity)
+        technical = technical_fit_score(candidate, requirements, active_config.scoring)
+        experience = experience_score(candidate, requirements, active_config.scoring)
+        consistency = career_consistency_score(candidate, requirements, active_config.scoring)
+        cluster = skill_cluster_bonus(candidate, requirements, active_config.scoring)
+        behavioral = compute_behavioral_score(candidate, active_config.behavioral)
+        authenticity = authenticity_score(candidate, active_config.scoring)
+        recruiter_twin = recruiter_cognitive_twin_score(
+            technical,
+            experience,
+            consistency,
+            cluster,
+            behavioral,
+            authenticity,
+            active_config.scoring,
+        )
+        hidden_gem = hidden_gem_score(
+            candidate,
+            technical,
+            experience,
+            cluster,
+            behavioral,
+            active_config.scoring,
+        )
+        final_score = _combine_scores(
+            technical,
+            experience,
+            consistency,
+            cluster,
+            behavioral,
+            authenticity,
+            active_weights,
+            active_config,
+        )
+        strengths = candidate_strengths(technical, experience, consistency, cluster, behavioral, authenticity, active_config)
+        risks = candidate_risks(technical, experience, consistency, behavioral, authenticity, active_config)
+        decision = recruiter_decision_output(final_score, technical, experience, consistency, behavioral, authenticity)
+        confidence = hiring_confidence_score(technical, experience, consistency, behavioral, authenticity)
         explanation = generate_explanation(
             technical,
             experience,
@@ -165,6 +299,17 @@ def rank_candidates(
             authenticity,
             final_score,
             strengths,
+            risks,
+        )
+        executive_summary = generate_executive_recruiter_summary(
+            final_score,
+            decision,
+            technical,
+            experience,
+            consistency,
+            cluster,
+            behavioral,
+            authenticity,
             risks,
         )
 
@@ -179,6 +324,11 @@ def rank_candidates(
                 skill_cluster=cluster,
                 behavioral=behavioral,
                 authenticity=authenticity,
+                recruiter_cognitive_twin=recruiter_twin,
+                hidden_gem=hidden_gem,
+                recruiter_decision=decision,
+                hiring_confidence=confidence,
+                executive_recruiter_summary=executive_summary,
                 explanation=explanation,
                 strengths=strengths,
                 risks=risks,
@@ -209,6 +359,11 @@ def rank_candidates(
             skill_cluster=item.skill_cluster,
             behavioral=item.behavioral,
             authenticity=item.authenticity,
+            recruiter_cognitive_twin=item.recruiter_cognitive_twin,
+            hidden_gem=item.hidden_gem,
+            recruiter_decision=item.recruiter_decision,
+            hiring_confidence=item.hiring_confidence,
+            executive_recruiter_summary=item.executive_recruiter_summary,
             explanation=item.explanation,
             strengths=item.strengths,
             risks=item.risks,
@@ -257,6 +412,194 @@ def generate_explanation(
     ).strip()
 
 
+def recruiter_decision_output(
+    final_score: float,
+    technical: ScoreResult,
+    experience: ScoreResult,
+    career_consistency: ScoreResult,
+    behavioral: BehavioralScore,
+    authenticity: ScoreResult,
+) -> dict[str, Any]:
+    """Convert ranking evidence into a recruiter decision bucket."""
+
+    risk_level = str(authenticity.metadata.get("risk_level", "")).upper()
+    if risk_level == "HIGH" or final_score < 55:
+        decision = "Reject"
+    elif final_score >= 85 and risk_level == "LOW":
+        decision = "Shortlist"
+    elif final_score >= 75 and risk_level in {"LOW", "MEDIUM"}:
+        decision = "Strong Consideration"
+    elif final_score >= 60:
+        decision = "Hold"
+    else:
+        decision = "Reject"
+
+    reasons: list[str] = []
+    if decision == "Shortlist":
+        reasons.append("High final score with strong fit evidence and low authenticity risk")
+    elif decision == "Strong Consideration":
+        reasons.append("Good overall evidence, but recruiter validation is recommended before shortlist")
+    elif decision == "Hold":
+        reasons.append("Some useful signals, but score or evidence gaps limit immediate confidence")
+    else:
+        reasons.append("Insufficient score quality or elevated risk for this role")
+
+    if technical.gaps:
+        reasons.append(f"Key gap: {technical.gaps[0]}")
+    if experience.gaps:
+        reasons.append(f"Experience concern: {experience.gaps[0]}")
+    if career_consistency.gaps:
+        reasons.append(f"Career concern: {career_consistency.gaps[0]}")
+    if behavioral.risk_signals:
+        reasons.append(f"Signal concern: {behavioral.risk_signals[0]}")
+    if risk_level != "LOW":
+        reasons.append(f"Authenticity risk is {risk_level}")
+
+    return {
+        "decision": decision,
+        "reason": ". ".join(reasons[:3]) + ".",
+        "evidence": {
+            "final_score": final_score,
+            "technical_score": technical.score,
+            "experience_score": experience.score,
+            "career_consistency_score": career_consistency.score,
+            "behavioral_score": behavioral.score,
+            "authenticity_score": authenticity.score,
+            "risk_level": risk_level,
+        },
+    }
+
+
+def hiring_confidence_score(
+    technical: ScoreResult,
+    experience: ScoreResult,
+    career_consistency: ScoreResult,
+    behavioral: BehavioralScore,
+    authenticity: ScoreResult,
+) -> ScoreResult:
+    """Estimate how much confidence a recruiter should have in the recommendation."""
+
+    completeness = float(authenticity.metadata.get("profile_completeness_score", 0.0) or 0.0)
+    evidence_quality = _evidence_quality_score(technical, experience, career_consistency, behavioral, authenticity)
+    consistency_strength = career_consistency.score
+    signal_strength = (behavioral.score * 0.55) + (authenticity.score * 0.45)
+    score = round(
+        min(
+            100.0,
+            evidence_quality * 0.30
+            + completeness * 0.20
+            + consistency_strength * 0.25
+            + signal_strength * 0.25,
+        ),
+        2,
+    )
+    if score >= 80:
+        level = "High"
+    elif score >= 60:
+        level = "Medium"
+    else:
+        level = "Low"
+
+    evidence = [
+        f"Evidence quality score: {evidence_quality:.1f}",
+        f"Profile completeness: {completeness:.1f}",
+        f"Career consistency: {career_consistency.score:.1f}",
+        f"Behavioral/authenticity signal blend: {signal_strength:.1f}",
+    ]
+    gaps = []
+    if technical.gaps:
+        gaps.append(technical.gaps[0])
+    if behavioral.risk_signals:
+        gaps.append(behavioral.risk_signals[0])
+    if authenticity.gaps:
+        gaps.append(authenticity.gaps[0])
+
+    return ScoreResult(
+        score=score,
+        explanation=f"{level} hiring confidence based on evidence quality, completeness, consistency, and signal strength.",
+        evidence=evidence,
+        gaps=_dedupe(gaps),
+        metadata={
+            "confidence_level": level,
+            "reasoning": {
+                "evidence_quality": round(evidence_quality, 2),
+                "profile_completeness": round(completeness, 2),
+                "career_consistency": career_consistency.score,
+                "signal_strength": round(signal_strength, 2),
+                "weights": {
+                    "evidence_quality": 0.30,
+                    "profile_completeness": 0.20,
+                    "career_consistency": 0.25,
+                    "signal_strength": 0.25,
+                },
+            },
+        },
+    )
+
+
+def generate_executive_recruiter_summary(
+    final_score: float,
+    decision: dict[str, Any],
+    technical: ScoreResult,
+    experience: ScoreResult,
+    career_consistency: ScoreResult,
+    skill_cluster: ScoreResult,
+    behavioral: BehavioralScore,
+    authenticity: ScoreResult,
+    risks: list[str],
+) -> str:
+    """Create a compact 2-3 sentence recruiter summary for demos and judging."""
+
+    risk_level = authenticity.metadata.get("risk_level", "")
+    profile_type = "candidate"
+    if technical.score >= 75 and skill_cluster.score > 0:
+        profile_type = "technically aligned candidate"
+    elif career_consistency.score >= 80:
+        profile_type = "career-consistent candidate"
+    elif behavioral.score >= 75:
+        profile_type = "high-engagement candidate"
+
+    first = (
+        f"Strong {profile_type} with a {final_score:.2f} final score, "
+        f"{experience.score:.0f} experience score, {career_consistency.score:.0f} career consistency, "
+        f"and {risk_level} authenticity risk."
+    )
+    technical_clause = technical.explanation.rstrip(".").lower()
+    behavioral_clause = behavioral.explanation.rstrip(".").lower()
+    second = (
+        f"Recommended decision: {decision.get('decision', 'Hold')} based on "
+        f"{technical_clause} and {behavioral_clause}"
+    )
+    if risks:
+        third = f"Primary concern: {risks[0]}."
+        return f"{first} {second}. {third}"
+    return f"{first} {second}."
+
+
+def _evidence_quality_score(
+    technical: ScoreResult,
+    experience: ScoreResult,
+    career_consistency: ScoreResult,
+    behavioral: BehavioralScore,
+    authenticity: ScoreResult,
+) -> float:
+    evidence_count = (
+        len(technical.evidence)
+        + len(experience.evidence)
+        + len(career_consistency.evidence)
+        + len(behavioral.positive_signals)
+        + len(authenticity.evidence)
+    )
+    gap_count = (
+        len(technical.gaps)
+        + len(experience.gaps)
+        + len(career_consistency.gaps)
+        + len(behavioral.risk_signals)
+        + len(authenticity.gaps)
+    )
+    return max(0.0, min(100.0, 45.0 + evidence_count * 4.5 - gap_count * 5.0))
+
+
 def candidate_strengths(
     technical: ScoreResult,
     experience: ScoreResult,
@@ -264,6 +607,7 @@ def candidate_strengths(
     skill_cluster: ScoreResult,
     behavioral: BehavioralScore,
     authenticity: ScoreResult,
+    config: RankingConfig | None = None,
 ) -> list[str]:
     """Select the most recruiter-useful strengths from all dimensions."""
 
@@ -278,7 +622,8 @@ def candidate_strengths(
     strengths.extend(behavioral.positive_signals[:3])
     if authenticity.score >= 75:
         strengths.extend(authenticity.evidence[:3])
-    return _dedupe(strengths)[:8]
+    active_config = config or DEFAULT_CONFIG
+    return _dedupe(strengths)[: active_config.max_strengths]
 
 
 def candidate_risks(
@@ -287,6 +632,7 @@ def candidate_risks(
     career_consistency: ScoreResult,
     behavioral: BehavioralScore,
     authenticity: ScoreResult,
+    config: RankingConfig | None = None,
 ) -> list[str]:
     """Select the most decision-relevant risks from all dimensions."""
 
@@ -298,9 +644,48 @@ def candidate_risks(
     risks.extend(authenticity.gaps[:3])
 
     risk_level = authenticity.metadata.get("risk_level")
-    if risk_level in {"high", "critical"}:
+    if str(risk_level).upper() == "HIGH":
         risks.insert(0, f"Authenticity risk level is {risk_level}")
-    return _dedupe(risks)[:8]
+    active_config = config or DEFAULT_CONFIG
+    return _dedupe(risks)[: active_config.max_weaknesses]
+
+
+def score_breakdown(candidate: RankedCandidate) -> dict[str, Any]:
+    """Transparent score details with evidence and reasoning for every dimension."""
+
+    return {
+        "technical": candidate.technical_fit.to_dict(),
+        "experience": candidate.experience.to_dict(),
+        "career_consistency": candidate.career_consistency.to_dict(),
+        "skill_cluster_bonus": candidate.skill_cluster.to_dict(),
+        "behavioral": {
+            "score": candidate.behavioral.score,
+            "explanation": candidate.behavioral.explanation,
+            "evidence": candidate.behavioral.positive_signals,
+            "gaps": candidate.behavioral.risk_signals,
+            "metadata": {
+                "component_scores": {
+                    key: value
+                    for key, value in candidate.behavioral.components.items()
+                    if key != "signal_config"
+                },
+                "reasoning": candidate.behavioral.components.get("signal_config", {}),
+            },
+        },
+        "authenticity": candidate.authenticity.to_dict(),
+        "recruiter_cognitive_twin": candidate.recruiter_cognitive_twin.to_dict(),
+        "hidden_gem": candidate.hidden_gem.to_dict(),
+        "recruiter_decision": candidate.recruiter_decision,
+        "hiring_confidence": candidate.hiring_confidence.to_dict(),
+        "executive_recruiter_summary": {
+            "summary": candidate.executive_recruiter_summary,
+            "evidence": {
+                "decision": candidate.recruiter_decision.get("decision", ""),
+                "confidence_level": candidate.hiring_confidence.metadata.get("confidence_level", ""),
+                "confidence_score": candidate.hiring_confidence.score,
+            },
+        },
+    }
 
 
 def load_candidates_jsonl(path: str | Path) -> list[dict[str, Any]]:
@@ -326,10 +711,14 @@ def export_ranked_candidates(
     ranked_candidates: list[RankedCandidate],
     output_path: str | Path,
     sample_submission_path: str | Path | None = None,
+    config: RankingConfig | None = None,
 ) -> None:
-    """Export rankings to CSV, matching sample_submission.csv headers when present."""
+    """Export rankings to CSV, preserving sample headers and adding intelligence fields when possible."""
 
+    active_config = config or DEFAULT_CONFIG
     headers = load_sample_submission_headers(sample_submission_path) if sample_submission_path else DEFAULT_OUTPUT_FIELDS
+    if active_config.append_intelligence_export_fields:
+        headers = _append_intelligence_headers(headers)
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -359,17 +748,28 @@ def load_sample_submission_headers(path: str | Path | None) -> list[str]:
     return DEFAULT_OUTPUT_FIELDS
 
 
+def _append_intelligence_headers(headers: list[str]) -> list[str]:
+    """Append recruiter-intelligence fields without disturbing caller-provided column order."""
+
+    enhanced = list(headers)
+    for field_name in DEFAULT_OUTPUT_FIELDS:
+        if field_name not in enhanced:
+            enhanced.append(field_name)
+    return enhanced
+
+
 def run_ranking(
     job_description: str,
     candidates_path: str | Path = "data/candidates.jsonl",
     output_path: str | Path = "submission.csv",
     sample_submission_path: str | Path | None = "data/sample_submission.csv",
+    config: RankingConfig | None = None,
 ) -> list[RankedCandidate]:
     """Convenience function for the full ranking pipeline."""
 
     candidates = load_candidates_jsonl(candidates_path)
-    ranked = rank_candidates(candidates, job_description)
-    export_ranked_candidates(ranked, output_path, sample_submission_path)
+    ranked = rank_candidates(candidates, job_description, config=config)
+    export_ranked_candidates(ranked, output_path, sample_submission_path, config=config)
     return ranked
 
 
@@ -387,23 +787,27 @@ def _combine_scores(
     behavioral: BehavioralScore,
     authenticity: ScoreResult,
     weights: dict[str, float],
+    config: RankingConfig | None = None,
 ) -> float:
+    active_config = config or DEFAULT_CONFIG
+    cluster_bonus = min(active_config.scoring.skill_cluster_bonus_cap, skill_cluster.score)
     value = (
         technical.score * weights["technical_fit"]
         + experience.score * weights["experience"]
         + career_consistency.score * weights["career_consistency"]
         + behavioral.score * weights["behavioral"]
         + authenticity.score * weights["authenticity"]
-        + skill_cluster.score
+        + cluster_bonus
     )
     return round(min(100.0, value), 2)
 
 
-def _normalize_weights(weights: dict[str, float]) -> dict[str, float]:
-    complete = {**DEFAULT_WEIGHTS, **weights}
+def _normalize_weights(weights: dict[str, float], config: RankingConfig | None = None) -> dict[str, float]:
+    active_config = config or DEFAULT_CONFIG
+    complete = {**active_config.weights, **weights}
     total = sum(complete.values())
     if total <= 0:
-        return DEFAULT_WEIGHTS
+        return active_config.weights
     return {key: value / total for key, value in complete.items()}
 
 
@@ -474,6 +878,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-=======
-
->>>>>>> 924a5b14fb6eb352666c781b20c0a7887ab2e0e7

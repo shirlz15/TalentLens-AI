@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Analyze Role - TalentLens AI</title>
+<meta name="description" content="Search the built-in TalentLens candidate database by role and job description. Candidate upload is optional."/>
+<link rel="stylesheet" href="styles.css"/>
+<style>
+.search-page { padding: 40px 0 80px; }
+.role-panel { padding: 32px; }
+.form-row { display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 16px; }
+.field-label { font-size: 12px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: .08em; margin-bottom: 8px; }
+.role-input, .role-select, .jd-textarea {
+  width: 100%; background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px;
+  color: var(--text-primary); font-size: 14px; padding: 13px 14px; outline: none; transition: var(--transition);
+}
+.role-input:focus, .role-select:focus, .jd-textarea:focus { border-color: var(--purple); box-shadow: 0 0 0 3px rgba(139,92,246,.12); }
+.jd-textarea { min-height: 220px; resize: vertical; line-height: 1.7; font-family: Inter, sans-serif; }
+.database-strip { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; margin-top: 20px; }
+.upload-lite { border: 1px dashed rgba(139,92,246,.45); border-radius: 14px; padding: 20px; background: rgba(139,92,246,.06); }
+.preview-list { display: flex; flex-direction: column; gap: 12px; }
+.preview-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: rgba(255,255,255,.03); }
+.preview-name { font-weight: 700; font-size: 14px; }
+.preview-meta { color: var(--text-muted); font-size: 12px; }
+@media(max-width:800px){ .form-row,.database-strip{ grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<canvas id="bgCanvas"></canvas>
+<div class="page-overlay page-wrapper">
+  <div id="navPlaceholder"></div>
+  <main class="container search-page">
+    <div class="section-header animate-slide-up">
+      <div class="section-label">TalentLens Search</div>
+      <h1 class="section-title">Search the candidate <span>database</span></h1>
+      <p class="section-subtitle">Enter a job title, select the role family, paste the JD, and TalentLens ranks stored candidates automatically. No upload required.</p>
+    </div>
+
+    <div class="grid-2" style="gap:28px;align-items:start;">
+      <section class="glass role-panel animate-slide-up delay-1">
+        <div class="form-row">
+          <div>
+            <div class="field-label">Job Title</div>
+            <input id="jobTitle" class="role-input" value="Senior AI/ML Engineer" placeholder="Senior AI/ML Engineer"/>
+          </div>
+          <div>
+            <div class="field-label">Role</div>
+            <select id="roleFamily" class="role-select">
+              <option>AI/ML Engineering</option>
+              <option>Data Science</option>
+              <option>Data Engineering</option>
+              <option>Analytics</option>
+              <option>Full Stack Engineering</option>
+              <option>Conversational AI</option>
+            </select>
+          </div>
+        </div>
+        <div style="margin-top:18px;">
+          <div class="field-label">Job Description</div>
+          <textarea id="jobDescription" class="jd-textarea">We need a Senior AI/ML Engineer with strong Python, machine learning, deep learning, MLOps, LLM, RAG, and production deployment experience. The role owns model architecture, evaluation, and scalable delivery with product and data teams.</textarea>
+        </div>
+        <button class="btn btn-primary btn-lg" style="width:100%;justify-content:center;margin-top:18px;" onclick="analyzeDatabase()">
+          Analyze Candidates
+        </button>
+        <div class="database-strip">
+          <div class="glass stat-card"><div class="stat-label">Stored Profiles</div><div class="stat-value" id="storedCount">0</div></div>
+          <div class="glass stat-card"><div class="stat-label">User Added</div><div class="stat-value" id="userAddedCount">0</div></div>
+          <div class="glass stat-card"><div class="stat-label">Search Mode</div><div class="stat-value" style="font-size:22px;">Database</div></div>
+        </div>
+      </section>
+
+      <aside class="glass role-panel animate-slide-up delay-2">
+        <div class="section-label">Optional</div>
+        <h2 style="font-family:'Space Grotesk',sans-serif;font-size:24px;margin-bottom:8px;">Upload new candidate</h2>
+        <p style="color:var(--text-secondary);font-size:14px;margin-bottom:18px;">Add a resume PDF, DOCX, or candidate JSON. The profile is stored locally, marked User Added, and included in future rankings.</p>
+        <div class="upload-lite">
+          <input id="candidateUpload" type="file" accept=".pdf,.docx,.json" style="display:none" onchange="handleCandidateUpload(event)"/>
+          <button class="btn btn-secondary" style="width:100%;justify-content:center;" onclick="document.getElementById('candidateUpload').click()">Upload New Candidate</button>
+          <div id="uploadStatus" style="margin-top:12px;color:var(--text-muted);font-size:13px;">No upload needed to rank stored candidates.</div>
+        </div>
+        <div class="divider"></div>
+        <div class="field-label">Top database matches</div>
+        <div id="previewList" class="preview-list"></div>
+      </aside>
+    </div>
+  </main>
+  <div id="footerPlaceholder"></div>
+</div>
+
+<script src="app.js"></script>
+<script>
+document.getElementById('navPlaceholder').innerHTML = buildNav('jd-analysis.html');
+document.getElementById('footerPlaceholder').innerHTML = buildFooter();
+initNetworkCanvas();
+
+function refreshCounts() {
+  const db = getCandidateDatabase();
+  document.getElementById('storedCount').textContent = db.length;
+  document.getElementById('userAddedCount').textContent = db.filter(c => c.source === 'User Added').length;
+}
+
+function refreshPreview() {
+  const search = {
+    title: document.getElementById('jobTitle').value,
+    role: document.getElementById('roleFamily').value,
+    jd: document.getElementById('jobDescription').value
+  };
+  const top = getCandidateDatabase().map(c => rankCandidateForSearch(c, search)).sort((a,b) => b.finalScore - a.finalScore).slice(0, 4);
+  document.getElementById('previewList').innerHTML = top.map(c => `
+    <div class="preview-row">
+      <div>
+        <div class="preview-name">${c.name}</div>
+        <div class="preview-meta">${c.role} · ${c.source}</div>
+      </div>
+      <span class="score-pill ${c.finalScore >= 88 ? 'high' : c.finalScore >= 75 ? 'mid' : 'low'}">${c.finalScore}</span>
+    </div>
+  `).join('');
+}
+
+function analyzeDatabase() {
+  saveTalentSearch({
+    title: document.getElementById('jobTitle').value || 'Untitled Role',
+    role: document.getElementById('roleFamily').value,
+    jd: document.getElementById('jobDescription').value
+  });
+  window.location.href = 'dashboard.html';
+}
+
+function handleCandidateUpload(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+  importCandidateFile(file, result => {
+    document.getElementById('uploadStatus').textContent = result.added
+      ? `✓ Resume Parsed. ${result.candidate.name} added as User Added.`
+      : `Duplicate detected. ${result.candidate.name} is already in User Added candidates.`;
+    refreshCounts();
+    refreshPreview();
+  });
+}
+
+['jobTitle','roleFamily','jobDescription'].forEach(id => document.getElementById(id).addEventListener('input', refreshPreview));
+refreshCounts();
+refreshPreview();
+</script>
+</body>
+</html>

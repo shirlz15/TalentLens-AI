@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Hidden Gems - TalentLens AI</title>
+<meta name="description" content="Hidden gem candidates detected from the stored TalentLens candidate database."/>
+<link rel="stylesheet" href="styles.css"/>
+<style>
+.gems-page { padding:40px 0 80px; }
+.gem-grid { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:20px; }
+.gem-card { padding:24px; display:flex; flex-direction:column; gap:18px; }
+.gem-head { display:flex; gap:14px; align-items:center; }
+.gem-score-row { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+.gem-score { padding:14px; border:1px solid var(--border); border-radius:12px; background:rgba(255,255,255,.035); }
+.gem-score .label { color:var(--text-muted); font-size:11px; text-transform:uppercase; letter-spacing:.06em; margin-bottom:4px; }
+.gem-score .value { font-family:'Space Grotesk',sans-serif; font-size:24px; font-weight:800; }
+.reason-box { border-left:3px solid var(--cyan); padding:12px 14px; background:rgba(6,182,212,.08); border-radius:0 10px 10px 0; color:var(--text-secondary); font-size:14px; line-height:1.65; }
+.empty-gems { padding:28px; color:var(--text-secondary); border:1px dashed var(--border); border-radius:14px; }
+@media(max-width:900px){ .gem-grid,.gem-score-row{ grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<canvas id="bgCanvas"></canvas>
+<div class="page-overlay page-wrapper">
+  <div id="navPlaceholder"></div>
+  <main class="container gems-page">
+    <div class="section-header">
+      <div class="section-label">Hidden Gem Detection</div>
+      <h1 class="section-title">Overlooked <span>High-Potential</span> Talent</h1>
+      <p class="section-subtitle">TalentLens searches the stored candidate database for strong projects, technical depth, learning velocity, and recruiter signals that traditional screening may miss.</p>
+    </div>
+
+    <section class="summary-bar" style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:24px;">
+      <div class="glass" style="padding:22px;"><div class="stat-label">Hidden Gems</div><div class="stat-value" id="gemCount">0</div></div>
+      <div class="glass" style="padding:22px;"><div class="stat-label">Avg Hidden Gem Score</div><div class="stat-value" id="avgGemScore">0</div></div>
+      <div class="glass" style="padding:22px;"><div class="stat-label">User Added Gems</div><div class="stat-value" id="userGemCount">0</div></div>
+      <div class="glass" style="padding:22px;"><div class="stat-label">Top Gem Score</div><div class="stat-value" id="topGemScore">0</div></div>
+    </section>
+
+    <section id="gemGrid" class="gem-grid"></section>
+  </main>
+  <div id="footerPlaceholder"></div>
+</div>
+
+<script src="app.js"></script>
+<script>
+document.getElementById('navPlaceholder').innerHTML = buildNav('hidden-gems.html');
+document.getElementById('footerPlaceholder').innerHTML = buildFooter();
+initNetworkCanvas();
+
+function renderHiddenGems() {
+  const ranked = getRankedCandidatesForActiveSearch();
+  const gems = ranked
+    .map(c => ({ ...c, hiddenGemScore: getHiddenGemScore(c), hiringConfidence: getHiringConfidence(c) }))
+    .filter(c => c.hiddenGem || c.hiddenGemScore >= 84)
+    .sort((a,b) => b.hiddenGemScore - a.hiddenGemScore || b.finalScore - a.finalScore);
+
+  document.getElementById('gemCount').textContent = gems.length;
+  document.getElementById('avgGemScore').textContent = gems.length ? Math.round(gems.reduce((sum,c) => sum + c.hiddenGemScore, 0) / gems.length) : 0;
+  document.getElementById('userGemCount').textContent = gems.filter(c => c.source === 'User Added').length;
+  document.getElementById('topGemScore').textContent = gems[0]?.hiddenGemScore || 0;
+
+  document.getElementById('gemGrid').innerHTML = gems.length ? gems.map(c => `
+    <article class="glass gem-card">
+      <div class="gem-head">
+        <div class="avatar avatar-md" style="background:${c.gradient};">${c.initials}</div>
+        <div style="flex:1;">
+          <div style="font-family:'Space Grotesk',sans-serif;font-size:20px;font-weight:800;">${c.name}</div>
+          <div style="color:var(--text-muted);font-size:13px;">${c.role} · ${c.source || 'Built-In'}</div>
+        </div>
+        <span class="gem-badge">Hidden Gem</span>
+      </div>
+      <div class="gem-score-row">
+        <div class="gem-score"><div class="label">Hidden Gem</div><div class="value" style="color:${getScoreColor(c.hiddenGemScore)};">${c.hiddenGemScore}</div></div>
+        <div class="gem-score"><div class="label">Cognitive Twin</div><div class="value">${c.cognitiveTwinScore}</div></div>
+        <div class="gem-score"><div class="label">Hiring Confidence</div><div class="value">${c.hiringConfidence}</div></div>
+        <div class="gem-score"><div class="label">Technical Fit</div><div class="value">${c.technicalScore}</div></div>
+      </div>
+      <div>
+        ${(c.skills || []).slice(0,7).map(skill => `<span class="tag tag-skill">${skill}</span>`).join('')}
+      </div>
+      <div class="reason-box"><strong>Why traditional screening might miss this candidate:</strong> ${getHiddenGemReason(c)}</div>
+      <div class="reason-box" style="border-left-color:var(--purple);background:rgba(139,92,246,.08);"><strong>Recruiter reasoning:</strong> ${c.recruiterReasoning}</div>
+      <a href="candidate-card.html?id=${c.id}" class="btn btn-secondary">Open Intelligence Card</a>
+    </article>
+  `).join('') : '<div class="empty-gems">No hidden gems detected for the current search. Try a broader role or upload an early-career candidate with strong projects.</div>';
+}
+
+renderHiddenGems();
+</script>
+</body>
+</html>

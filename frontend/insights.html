@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>AI Insights - TalentLens AI</title>
+<meta name="description" content="Recruiter-facing analytics from the TalentLens candidate intelligence engine."/>
+<link rel="stylesheet" href="styles.css"/>
+<style>
+.insights-page { padding:40px 0 80px; }
+.metric-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:24px; }
+.metric { padding:22px; }
+.chart-grid { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:24px; align-items:start; }
+.chart-card { padding:24px; }
+.bar-row { display:flex; align-items:center; gap:12px; margin:12px 0; }
+.bar-label { width:170px; color:var(--text-secondary); font-size:13px; }
+.bar-value { width:38px; text-align:right; font-weight:800; font-family:'Space Grotesk',sans-serif; }
+.insight-note { margin-top:18px; color:var(--text-secondary); font-size:14px; line-height:1.65; }
+@media(max-width:900px){ .metric-grid,.chart-grid{ grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<canvas id="bgCanvas"></canvas>
+<div class="page-overlay page-wrapper">
+  <div id="navPlaceholder"></div>
+  <main class="container insights-page">
+    <div class="section-header">
+      <div class="section-label">AI Insights</div>
+      <h1 class="section-title">Recruiter Intelligence <span>Report</span></h1>
+      <p class="section-subtitle">A live analytics layer over the stored TalentLens database: score quality, confidence, risk, skill clusters, and hidden-gem distribution.</p>
+    </div>
+
+    <section class="metric-grid">
+      <div class="glass metric"><div class="stat-label">Total Candidates</div><div class="stat-value" id="totalCandidates">0</div></div>
+      <div class="glass metric"><div class="stat-label">Avg Candidate Score</div><div class="stat-value" id="avgScore">0</div></div>
+      <div class="glass metric"><div class="stat-label">Avg Cognitive Twin</div><div class="stat-value" id="avgTwin">0</div></div>
+      <div class="glass metric"><div class="stat-label">High Confidence</div><div class="stat-value" id="highConfidence">0</div></div>
+    </section>
+
+    <section class="chart-grid">
+      <div class="glass chart-card">
+        <div class="section-label">Hidden Gem Distribution</div>
+        <div id="hiddenGemChart"></div>
+      </div>
+      <div class="glass chart-card">
+        <div class="section-label">Recruiter Cognitive Twin Distribution</div>
+        <div id="twinChart"></div>
+      </div>
+      <div class="glass chart-card">
+        <div class="section-label">Hiring Confidence Distribution</div>
+        <div id="confidenceChart"></div>
+      </div>
+      <div class="glass chart-card">
+        <div class="section-label">Risk Distribution</div>
+        <div id="riskChart"></div>
+      </div>
+      <div class="glass chart-card">
+        <div class="section-label">Top Skill Clusters</div>
+        <div id="clusterChart"></div>
+      </div>
+      <div class="glass chart-card">
+        <div class="section-label">Candidate Score Distribution</div>
+        <div id="scoreChart"></div>
+      </div>
+    </section>
+  </main>
+  <div id="footerPlaceholder"></div>
+</div>
+
+<script src="app.js"></script>
+<script>
+document.getElementById('navPlaceholder').innerHTML = buildNav('insights.html');
+document.getElementById('footerPlaceholder').innerHTML = buildFooter();
+initNetworkCanvas();
+
+function bucketScore(value) {
+  if (value >= 90) return '90-100';
+  if (value >= 80) return '80-89';
+  if (value >= 70) return '70-79';
+  if (value >= 60) return '60-69';
+  return 'Below 60';
+}
+
+function countBy(items, getKey) {
+  return items.reduce((acc, item) => {
+    const key = getKey(item);
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+}
+
+function renderBars(targetId, entries, cls = '') {
+  const max = Math.max(1, ...entries.map(([,count]) => count));
+  document.getElementById(targetId).innerHTML = entries.map(([label, count]) => `
+    <div class="bar-row">
+      <div class="bar-label">${label}</div>
+      <div class="progress-bar" style="flex:1;"><div class="progress-fill ${cls}" data-target="${Math.round(count / max * 100)}" style="width:0%"></div></div>
+      <div class="bar-value">${count}</div>
+    </div>
+  `).join('');
+}
+
+function renderInsights() {
+  const data = getRankedCandidatesForActiveSearch().map(c => ({
+    ...c,
+    hiringConfidence: getHiringConfidence(c),
+    confidenceLevel: getConfidenceLevel(getHiringConfidence(c)),
+    hiddenGemScore: getHiddenGemScore(c)
+  }));
+  const avg = key => data.length ? Math.round(data.reduce((sum,c) => sum + c[key], 0) / data.length) : 0;
+  const clusters = {
+    'AI / ML': ['Python','Machine Learning','Deep Learning','PyTorch','TensorFlow','NLP'],
+    'GenAI': ['LLMs','RAG','LangChain','Vector DBs','Prompt Engineering'],
+    'Data Engineering': ['SQL','Spark','Airflow','Data Engineering','Docker','GCP','AWS'],
+    'Analytics': ['Tableau','Power BI','Excel','Statistics','Data Analysis'],
+    'Product Engineering': ['React','TypeScript','FastAPI','Node.js']
+  };
+
+  document.getElementById('totalCandidates').textContent = data.length;
+  document.getElementById('avgScore').textContent = avg('finalScore');
+  document.getElementById('avgTwin').textContent = avg('cognitiveTwinScore');
+  document.getElementById('highConfidence').textContent = data.filter(c => c.confidenceLevel === 'High').length;
+
+  renderBars('hiddenGemChart', [['Hidden Gem', data.filter(c => c.hiddenGem || c.hiddenGemScore >= 84).length], ['Traditional Fit', data.filter(c => !(c.hiddenGem || c.hiddenGemScore >= 84)).length]], 'green');
+  renderBars('twinChart', Object.entries(countBy(data, c => bucketScore(c.cognitiveTwinScore))).sort());
+  renderBars('confidenceChart', Object.entries(countBy(data, c => c.confidenceLevel)).sort(), 'blue');
+  renderBars('riskChart', Object.entries(countBy(data, c => c.riskLevel || 'Medium')).sort(), 'green');
+  renderBars('clusterChart', Object.entries(clusters).map(([label, skills]) => [label, data.filter(c => skills.some(skill => (c.skills || []).includes(skill))).length]).sort((a,b) => b[1] - a[1]), 'blue');
+  renderBars('scoreChart', Object.entries(countBy(data, c => bucketScore(c.finalScore))).sort());
+
+  setTimeout(animateProgressBars, 150);
+}
+
+renderInsights();
+</script>
+</body>
+</html>

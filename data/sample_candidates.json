@@ -1,1 +1,270 @@
-
+[
+  {
+    "profile": {"candidate_id": "TL-001", "name": "Asha Rao", "headline": "Senior Data Scientist", "years_experience": 6},
+    "career_history": [
+      {"title": "Data Analyst", "start_date": "2018-06", "end_date": "2020-12", "description": "SQL analytics and dashboarding"},
+      {"title": "Senior Data Scientist", "start_date": "2021-01", "end_date": "present", "description": "Python machine learning, statistics, and ranking models"}
+    ],
+    "education": [{"degree": "BTech Computer Science"}],
+    "skills": ["Python", "SQL", "Machine Learning", "Statistics", "Pandas", "Data Analysis"],
+    "certifications": ["AWS Machine Learning Specialty"],
+    "redrob_signals": {
+      "recruiter_response_rate": 84,
+      "github_activity_score": 78,
+      "profile_completeness_score": 94,
+      "interview_completion_rate": 88,
+      "open_to_work_flag": true,
+      "saved_by_recruiters_30d": 18,
+      "search_appearance_30d": 150,
+      "verified_email": true,
+      "verified_phone": true,
+      "linkedin_connected": true
+    }
+  },
+  {
+    "profile": {"candidate_id": "TL-002", "name": "Rohan Mehta", "headline": "ML Engineer", "years_experience": 5},
+    "career_history": [
+      {"title": "Software Engineer", "start_date": "2019-03", "end_date": "2021-07", "description": "Python APIs and data services"},
+      {"title": "ML Engineer", "start_date": "2021-08", "end_date": "present", "description": "Machine learning pipelines, Docker, AWS, model deployment"}
+    ],
+    "education": [{"degree": "MSc Data Science"}],
+    "skills": ["Python", "Machine Learning", "Deep Learning", "Docker", "AWS", "API Development", "SQL"],
+    "certifications": ["TensorFlow Developer"],
+    "redrob_signals": {
+      "recruiter_response_rate": 76,
+      "github_activity_score": 92,
+      "profile_completeness_score": 90,
+      "interview_completion_rate": 80,
+      "open_to_work_flag": true,
+      "saved_by_recruiters_30d": 14,
+      "search_appearance_30d": 120,
+      "verified_email": true,
+      "verified_phone": true,
+      "linkedin_connected": true
+    }
+  },
+  {
+    "profile": {"candidate_id": "TL-003", "name": "Nisha Iyer", "headline": "Analytics Lead", "years_experience": 8},
+    "career_history": [
+      {"title": "Business Analyst", "start_date": "2016-04", "end_date": "2019-05", "description": "SQL, Excel, reporting"},
+      {"title": "Analytics Lead", "start_date": "2019-06", "end_date": "present", "description": "Power BI, Tableau, stakeholder communication, data analysis"}
+    ],
+    "education": [{"degree": "MBA Analytics"}],
+    "skills": ["SQL", "Excel", "Power BI", "Tableau", "Data Analysis", "Statistics", "Communication"],
+    "certifications": ["Microsoft Power BI"],
+    "redrob_signals": {
+      "recruiter_response_rate": 88,
+      "github_activity_score": 30,
+      "profile_completeness_score": 96,
+      "interview_completion_rate": 90,
+      "open_to_work_flag": true,
+      "saved_by_recruiters_30d": 22,
+      "search_appearance_30d": 180,
+      "verified_email": true,
+      "verified_phone": true,
+      "linkedin_connected": true
+    }
+  },
+  {
+    "profile": {"candidate_id": "TL-004", "name": "Kabir Singh", "headline": "Data Engineer", "years_experience": 5},
+    "career_history": [
+      {"title": "Data Engineer", "start_date": "2020-01", "end_date": "present", "description": "Spark, SQL, Python, data pipelines on GCP"}
+    ],
+    "education": [{"degree": "BTech Information Technology"}],
+    "skills": ["Python", "SQL", "Data Engineering", "Spark", "GCP", "Docker"],
+    "certifications": ["Google Professional Data Engineer"],
+    "redrob_signals": {
+      "recruiter_response_rate": 70,
+      "github_activity_score": 65,
+      "profile_completeness_score": 86,
+      "interview_completion_rate": 72,
+      "open_to_work_flag": false,
+      "saved_by_recruiters_30d": 10,
+      "search_appearance_30d": 95,
+      "verified_email": true,
+      "verified_phone": true,
+      "linkedin_connected": true
+    }
+  },
+  {
+    "profile": {"candidate_id": "TL-005", "name": "Meera Das", "headline": "Junior Data Analyst", "years_experience": 2},
+    "career_history": [
+      {"title": "Data Analyst", "start_date": "2023-01", "end_date": "present", "description": "Excel dashboards, SQL reports, Tableau"}
+    ],
+    "education": [{"degree": "BSc Statistics"}],
+    "skills": ["SQL", "Excel", "Tableau", "Statistics", "Data Analysis"],
+    "certifications": [],
+    "redrob_signals": {
+      "recruiter_response_rate": 68,
+      "github_activity_score": 20,
+      "profile_completeness_score": 80,
+      "interview_completion_rate": 78,
+      "open_to_work_flag": true,
+      "saved_by_recruiters_30d": 8,
+      "search_appearance_30d": 70,
+      "verified_email": true,
+      "verified_phone": false,
+      "linkedin_connected": true
+    }
+  },
+  {
+    "profile": {"candidate_id": "TL-006", "name": "Arjun Nair", "headline": "Backend Engineer", "years_experience": 6},
+    "career_history": [
+      {"title": "Backend Engineer", "start_date": "2018-10", "end_date": "present", "description": "FastAPI, SQL, Docker, cloud services"}
+    ],
+    "education": [{"degree": "BTech Computer Science"}],
+    "skills": ["Python", "SQL", "API Development", "Docker", "AWS", "Git"],
+    "certifications": ["AWS Developer Associate"],
+    "redrob_signals": {
+      "recruiter_response_rate": 60,
+      "github_activity_score": 85,
+      "profile_completeness_score": 82,
+      "interview_completion_rate": 62,
+      "open_to_work_flag": true,
+      "saved_by_recruiters_30d": 7,
+      "search_appearance_30d": 90,
+      "verified_email": true,
+      "verified_phone": true,
+      "linkedin_connected": false
+    }
+  },
+  {
+    "profile": {"candidate_id": "TL-007", "name": "Priya Shah", "headline": "NLP Research Associate", "years_experience": 4},
+    "career_history": [
+      {"title": "Research Associate", "start_date": "2020-08", "end_date": "2022-12", "description": "NLP experiments and model evaluation"},
+      {"title": "NLP Engineer", "start_date": "2023-01", "end_date": "present", "description": "LLM prototypes, Python, deep learning"}
+    ],
+    "education": [{"degree": "MTech AI"}],
+    "skills": ["Python", "NLP", "Deep Learning", "Machine Learning", "Pandas", "Git"],
+    "projects": [
+      {
+        "name": "RAG Research Assistant",
+        "description": "Built a Python LLM and RAG prototype with vector search, evaluation notebooks, and GitHub documentation."
+      },
+      {
+        "name": "NLP Model Evaluation Toolkit",
+        "description": "Open source project for deep learning experiment tracking, model comparison, and error analysis."
+      }
+    ],
+    "certifications": [],
+    "redrob_signals": {
+      "recruiter_response_rate": 74,
+      "github_activity_score": 82,
+      "profile_completeness_score": 88,
+      "interview_completion_rate": 76,
+      "open_to_work_flag": true,
+      "saved_by_recruiters_30d": 13,
+      "search_appearance_30d": 105,
+      "verified_email": true,
+      "verified_phone": false,
+      "linkedin_connected": true
+    }
+  },
+  {
+    "profile": {"candidate_id": "TL-008", "name": "Dev Malhotra", "headline": "Full Stack Developer", "years_experience": 4},
+    "career_history": [
+      {"title": "Full Stack Developer", "start_date": "2020-05", "end_date": "present", "description": "React, APIs, SQL, Git, Docker"}
+    ],
+    "education": [{"degree": "BCA"}],
+    "skills": ["JavaScript", "React", "API Development", "SQL", "Docker", "Git"],
+    "certifications": [],
+    "redrob_signals": {
+      "recruiter_response_rate": 58,
+      "github_activity_score": 80,
+      "profile_completeness_score": 76,
+      "interview_completion_rate": 70,
+      "open_to_work_flag": true,
+      "saved_by_recruiters_30d": 9,
+      "search_appearance_30d": 85,
+      "verified_email": true,
+      "verified_phone": true,
+      "linkedin_connected": true
+    }
+  },
+  {
+    "profile": {"candidate_id": "TL-009", "name": "Sara Khan", "headline": "Data Science Intern", "years_experience": 1},
+    "career_history": [
+      {"title": "Data Science Intern", "start_date": "2024-06", "end_date": "present", "description": "Python notebooks, pandas, basic ML"}
+    ],
+    "education": [{"degree": "BSc Computer Science"}],
+    "skills": ["Python", "Pandas", "Machine Learning", "Excel"],
+    "certifications": ["Kaggle Intro ML"],
+    "redrob_signals": {
+      "recruiter_response_rate": 64,
+      "github_activity_score": 60,
+      "profile_completeness_score": 72,
+      "interview_completion_rate": 55,
+      "open_to_work_flag": true,
+      "saved_by_recruiters_30d": 4,
+      "search_appearance_30d": 50,
+      "verified_email": true,
+      "verified_phone": false,
+      "linkedin_connected": false
+    }
+  },
+  {
+    "profile": {"candidate_id": "TL-010", "name": "Vikram Joshi", "headline": "Senior BI Consultant", "years_experience": 7},
+    "career_history": [
+      {"title": "BI Developer", "start_date": "2017-02", "end_date": "2020-03", "description": "SQL, Power BI, Excel automation"},
+      {"title": "Senior BI Consultant", "start_date": "2020-04", "end_date": "present", "description": "Tableau, stakeholder dashboards, analytics strategy"}
+    ],
+    "education": [{"degree": "BE Electronics"}],
+    "skills": ["SQL", "Power BI", "Tableau", "Excel", "Data Analysis", "Communication"],
+    "certifications": ["Tableau Desktop Specialist"],
+    "redrob_signals": {
+      "recruiter_response_rate": 79,
+      "github_activity_score": 18,
+      "profile_completeness_score": 92,
+      "interview_completion_rate": 84,
+      "open_to_work_flag": false,
+      "saved_by_recruiters_30d": 17,
+      "search_appearance_30d": 130,
+      "verified_email": true,
+      "verified_phone": true,
+      "linkedin_connected": true
+    }
+  },
+  {
+    "profile": {"candidate_id": "TL-011", "name": "Ishan Verma", "headline": "Cloud Data Scientist", "years_experience": 5},
+    "career_history": [
+      {"title": "Data Scientist", "start_date": "2019-07", "end_date": "2022-01", "description": "Python, ML, statistics"},
+      {"title": "Cloud Data Scientist", "start_date": "2022-02", "end_date": "present", "description": "AWS, model APIs, SQL, data science workflows"}
+    ],
+    "education": [{"degree": "MSc Statistics"}],
+    "skills": ["Python", "SQL", "Machine Learning", "Statistics", "AWS", "API Development"],
+    "certifications": ["AWS Solutions Architect"],
+    "redrob_signals": {
+      "recruiter_response_rate": 72,
+      "github_activity_score": 70,
+      "profile_completeness_score": 89,
+      "interview_completion_rate": 74,
+      "open_to_work_flag": true,
+      "saved_by_recruiters_30d": 11,
+      "search_appearance_30d": 100,
+      "verified_email": true,
+      "verified_phone": true,
+      "linkedin_connected": true
+    }
+  },
+  {
+    "profile": {"candidate_id": "TL-012", "name": "Tara Bose", "headline": "Operations Analyst", "years_experience": 3},
+    "career_history": [
+      {"title": "Operations Analyst", "start_date": "2021-09", "end_date": "present", "description": "Excel, reporting, process metrics"}
+    ],
+    "education": [{"degree": "BCom"}],
+    "skills": ["Excel", "Communication", "Data Analysis"],
+    "certifications": [],
+    "redrob_signals": {
+      "recruiter_response_rate": 42,
+      "github_activity_score": 5,
+      "profile_completeness_score": 60,
+      "interview_completion_rate": 50,
+      "open_to_work_flag": true,
+      "saved_by_recruiters_30d": 3,
+      "search_appearance_30d": 45,
+      "verified_email": true,
+      "verified_phone": false,
+      "linkedin_connected": false
+    }
+  }
+]

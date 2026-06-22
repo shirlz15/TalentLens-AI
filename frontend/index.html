@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>TalentLens AI — India's Recruiter Cognitive Twin</title>
+<meta name="description" content="TalentLens AI is India's first Recruiter Cognitive Twin — an enterprise AI platform that ranks, scores, and surfaces hidden gem candidates with explainable intelligence."/>
+<link rel="stylesheet" href="styles.css"/>
+<style>
+/* ── HERO ── */
+.hero {
+  position: relative; min-height: 100vh; display: flex; align-items: center;
+  justify-content: center; text-align: center; overflow: hidden;
+  background: var(--gradient-hero);
+}
+.hero::before {
+  content:''; position: absolute; inset: 0;
+  background: radial-gradient(ellipse 60% 80% at 50% 100%, rgba(99,102,241,0.15) 0%, transparent 70%);
+  pointer-events: none;
+}
+.hero-content { position: relative; z-index: 2; max-width: 860px; padding: 0 24px; }
+.hero-content { max-width: 1120px; }
+.hero-eyebrow {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 16px; border-radius: 99px;
+  background: rgba(139,92,246,0.12); border: 1px solid rgba(139,92,246,0.3);
+  font-size: 12px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--purple); margin-bottom: 28px;
+  animation: slide-up 0.5s ease both;
+}
+.hero-eyebrow .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--purple); animation: pulse-glow 2s infinite; }
+.hero-title {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: clamp(40px, 7vw, 80px); font-weight: 800;
+  line-height: 1.08; letter-spacing: -0.03em;
+  color: var(--text-primary); margin-bottom: 24px;
+  animation: slide-up 0.6s ease 0.1s both;
+}
+.hero-title .gradient-text { background: var(--gradient-1); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.hero-subtitle {
+  font-size: clamp(16px, 2vw, 20px); color: var(--text-secondary); line-height: 1.6;
+  max-width: 620px; margin: 0 auto 40px;
+  animation: slide-up 0.6s ease 0.2s both;
+}
+.hero-actions {
+  display: flex; gap: 16px; justify-content: center; flex-wrap: wrap;
+  animation: slide-up 0.6s ease 0.3s both;
+}
+.home-search {
+  margin: 34px auto 0; max-width: 980px; padding: 20px;
+  background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+  border-radius: 16px; display: grid; grid-template-columns: 1.1fr .9fr; gap: 16px; text-align:left;
+  animation: slide-up 0.6s ease 0.35s both;
+}
+.home-search-left { display:grid; grid-template-columns:1fr 180px; gap:12px; }
+.home-search input, .home-search select, .home-search textarea {
+  width: 100%; background: rgba(255,255,255,0.06); border: 1px solid var(--border);
+  border-radius: 10px; color: var(--text-primary); padding: 12px 14px; outline: none;
+}
+.home-search textarea { grid-column: 1 / -1; min-height: 90px; resize: vertical; font-family: Inter, sans-serif; }
+.home-search-left button { grid-column: 1 / -1; justify-content: center; }
+.home-upload { min-height:100%; border:1px dashed rgba(255,255,255,.24); border-radius:14px; padding:18px; display:flex; flex-direction:column; justify-content:center; gap:12px; background:rgba(255,255,255,.035); }
+.home-upload-title { font-family:'Space Grotesk',sans-serif; font-size:16px; font-weight:700; color:var(--text-primary); }
+.home-upload-copy { color:var(--text-secondary); font-size:13px; line-height:1.6; }
+.home-upload .btn { justify-content:center; }
+.home-upload-status { color:var(--text-muted); font-size:13px; min-height:18px; }
+@media(max-width:820px){ .home-search,.home-search-left { grid-template-columns:1fr; } }
+.hero-stats {
+  display: flex; gap: 40px; justify-content: center; flex-wrap: wrap;
+  margin-top: 60px; animation: slide-up 0.6s ease 0.4s both;
+}
+.hero-stat { text-align: center; }
+.hero-stat-value { font-family: 'Space Grotesk', sans-serif; font-size: 28px; font-weight: 700; background: var(--gradient-1); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.hero-stat-label { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+/* ── FEATURES GRID ── */
+.features-section { padding: 100px 0; }
+.feature-card { padding: 32px; border-radius: var(--radius-lg); }
+.feature-icon {
+  width: 52px; height: 52px; border-radius: 14px; margin-bottom: 20px;
+  display: flex; align-items: center; justify-content: center; font-size: 24px;
+}
+.feature-title { font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 700; margin-bottom: 10px; }
+.feature-desc { font-size: 14px; color: var(--text-secondary); line-height: 1.7; }
+
+/* ── INNOVATION PILLS ── */
+.innovation-strip { padding: 60px 0; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.pill-track { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+.innovation-pill {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 20px; border-radius: 12px;
+  background: var(--bg-card); border: 1px solid var(--border);
+  transition: var(--transition); cursor: default;
+}
+.innovation-pill:hover { border-color: var(--border-glow); background: var(--bg-card-hover); transform: translateY(-3px); }
+.innovation-pill .pill-icon { font-size: 22px; }
+.innovation-pill .pill-label { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+.innovation-pill .pill-sub { font-size: 11px; color: var(--text-muted); }
+
+/* ── HOW IT WORKS ── */
+.how-section { padding: 100px 0; }
+.steps { display: flex; flex-direction: column; gap: 0; }
+.step {
+  display: flex; gap: 32px; align-items: flex-start; padding: 40px 0;
+  border-bottom: 1px solid var(--border); position: relative;
+}
+.step:last-child { border-bottom: none; }
+.step-num {
+  font-family: 'Space Grotesk', sans-serif; font-size: 13px; font-weight: 700;
+  color: var(--purple); min-width: 36px; height: 36px;
+  background: rgba(139,92,246,0.12); border: 1px solid rgba(139,92,246,0.3);
+  border-radius: 10px; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.step-content { flex: 1; }
+.step-title { font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+.step-desc { color: var(--text-secondary); font-size: 15px; line-height: 1.6; }
+.step-badge { margin-top: 12px; }
+.step-visual {
+  width: 280px; flex-shrink: 0;
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 24px; display: flex; flex-direction: column; gap: 10px;
+}
+@media(max-width:768px) { .step { flex-direction: column; } .step-visual { width: 100%; } }
+
+/* ── CTA SECTION ── */
+.cta-section { padding: 100px 0; text-align: center; }
+.cta-box {
+  max-width: 680px; margin: 0 auto;
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 32px;
+  padding: 60px; position: relative; overflow: hidden;
+}
+.cta-box::before {
+  content:''; position: absolute; inset: -1px;
+  background: linear-gradient(135deg, rgba(139,92,246,0.3), rgba(99,102,241,0.2), rgba(59,130,246,0.3));
+  border-radius: 32px; z-index: -1;
+}
+.cta-title { font-family: 'Space Grotesk', sans-serif; font-size: 36px; font-weight: 800; margin-bottom: 16px; }
+.cta-sub { color: var(--text-secondary); margin-bottom: 36px; font-size: 16px; }
+</style>
+</head>
+<body>
+<canvas id="bgCanvas"></canvas>
+<div class="page-overlay">
+  <div id="navPlaceholder"></div>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-content">
+      <div class="hero-eyebrow"><span class="dot"></span> India's #1 AI Recruitment Intelligence Platform</div>
+      <h1 class="hero-title">
+        Your <span class="gradient-text">Recruiter<br>Cognitive Twin</span><br>has arrived.
+      </h1>
+      <p class="hero-subtitle">
+        TalentLens AI doesn't just rank resumes — it thinks like your best recruiter. 
+        Surface hidden gems, detect authenticity, and hire with explainable AI confidence.
+      </p>
+      <div class="home-search">
+        <div class="home-search-left">
+          <input id="homeJobTitle" value="Senior AI/ML Engineer" placeholder="Search role or job title"/>
+          <select id="homeRole">
+            <option>AI/ML Engineering</option>
+            <option>Data Science</option>
+            <option>Data Engineering</option>
+            <option>Analytics</option>
+            <option>Full Stack Engineering</option>
+          </select>
+          <textarea id="homeJd" placeholder="Paste job description">Senior AI/ML Engineer with Python, machine learning, deep learning, MLOps, LLM and RAG experience.</textarea>
+          <button class="btn btn-primary btn-lg" onclick="startHomeSearch()">Analyze Candidates</button>
+        </div>
+        <div class="home-upload" ondragover="event.preventDefault()" ondrop="handleHomeDrop(event)">
+          <div class="home-upload-title">Optional candidate upload</div>
+          <div class="home-upload-copy">Drop a resume PDF, DOCX, or candidate JSON to add a new profile to the TalentLens database. Rankings work even without uploads.</div>
+          <input id="homeCandidateUpload" type="file" accept=".pdf,.docx,.json" style="display:none" onchange="handleHomeUpload(event)"/>
+          <button class="btn btn-secondary" onclick="document.getElementById('homeCandidateUpload').click()">Upload New Candidate</button>
+          <a href="candidate-database.html" class="btn btn-secondary">View Candidate Database</a>
+          <div id="homeUploadStatus" class="home-upload-status">No upload required.</div>
+        </div>
+      </div>
+      <div class="hero-actions">
+        <a href="jd-analysis.html" class="btn btn-primary btn-lg">
+          <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          Analyze Candidates
+        </a>
+        <a href="dashboard.html" class="btn btn-secondary btn-lg">View Dashboard →</a>
+      </div>
+      <div class="hero-stats">
+        <div class="hero-stat"><div class="hero-stat-value">94%</div><div class="hero-stat-label">Ranking Accuracy</div></div>
+        <div class="hero-stat"><div class="hero-stat-value">3.2x</div><div class="hero-stat-label">Faster Shortlisting</div></div>
+        <div class="hero-stat"><div class="hero-stat-value">67%</div><div class="hero-stat-label">Hidden Gems Found</div></div>
+        <div class="hero-stat"><div class="hero-stat-value">99%</div><div class="hero-stat-label">Explainability Score</div></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- INNOVATION STRIP -->
+  <div class="innovation-strip">
+    <div class="container">
+      <div class="pill-track">
+        <div class="innovation-pill"><span class="pill-icon">🧠</span><div><div class="pill-label">Recruiter Cognitive Twin</div><div class="pill-sub">AI that thinks like your best recruiter</div></div></div>
+        <div class="innovation-pill"><span class="pill-icon">💎</span><div><div class="pill-label">Hidden Gem Detection</div><div class="pill-sub">Find overlooked high-potential talent</div></div></div>
+        <div class="innovation-pill"><span class="pill-icon">🃏</span><div><div class="pill-label">Intelligence Cards</div><div class="pill-sub">360° candidate profile intelligence</div></div></div>
+        <div class="innovation-pill"><span class="pill-icon">🔍</span><div><div class="pill-label">Authenticity Engine</div><div class="pill-sub">Cross-validate claims automatically</div></div></div>
+        <div class="innovation-pill"><span class="pill-icon">📊</span><div><div class="pill-label">Explainable AI Ranking</div><div class="pill-sub">Know exactly why each candidate ranked</div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FEATURES -->
+  <section class="features-section">
+    <div class="container">
+      <div class="section-header" style="text-align:center; display:flex; flex-direction:column; align-items:center;">
+        <div class="section-label">Core Features</div>
+        <h2 class="section-title">Recruit with <span>superhuman</span> intelligence</h2>
+        <p class="section-subtitle" style="text-align:center;">Every feature is engineered to give you an unfair advantage in finding and evaluating talent.</p>
+      </div>
+      <div class="grid-3" style="margin-top:48px;">
+        <div class="glass feature-card animate-slide-up delay-1">
+          <div class="feature-icon" style="background:rgba(139,92,246,0.15);">🧠</div>
+          <div class="feature-title">Cognitive Twin Engine</div>
+          <p class="feature-desc">Our AI mirrors the reasoning of your top recruiter — weighing culture fit, growth signals, and domain depth in every evaluation.</p>
+        </div>
+        <div class="glass feature-card animate-slide-up delay-2">
+          <div class="feature-icon" style="background:rgba(6,182,212,0.15);">💎</div>
+          <div class="feature-title">Hidden Gem Discovery</div>
+          <p class="feature-desc">Identifies undervalued candidates with high growth trajectories that traditional keyword-matching systems consistently overlook.</p>
+        </div>
+        <div class="glass feature-card animate-slide-up delay-3">
+          <div class="feature-icon" style="background:rgba(16,185,129,0.15);">🔍</div>
+          <div class="feature-title">Authenticity Engine</div>
+          <p class="feature-desc">Cross-validates resume claims against GitHub, publications, LinkedIn, and digital footprints — flags inconsistencies instantly.</p>
+        </div>
+        <div class="glass feature-card animate-slide-up delay-2">
+          <div class="feature-icon" style="background:rgba(99,102,241,0.15);">📊</div>
+          <div class="feature-title">Explainable AI Ranking</div>
+          <p class="feature-desc">Every ranking decision comes with a human-readable justification so your team understands and trusts the AI's reasoning.</p>
+        </div>
+        <div class="glass feature-card animate-slide-up delay-3">
+          <div class="feature-icon" style="background:rgba(245,158,11,0.15);">⚡</div>
+          <div class="feature-title">Real-Time JD Parsing</div>
+          <p class="feature-desc">Drag, drop, or paste any Job Description and watch TalentLens extract skills, seniority, culture signals, and role DNA in seconds.</p>
+        </div>
+        <div class="glass feature-card animate-slide-up delay-4">
+          <div class="feature-icon" style="background:rgba(236,72,153,0.15);">🤝</div>
+          <div class="feature-title">Candidate Comparison</div>
+          <p class="feature-desc">Side-by-side radar charts, score breakdowns, skill overlap analysis, and risk comparison for any two candidates simultaneously.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section class="how-section">
+    <div class="container">
+      <div class="section-header">
+        <div class="section-label">How It Works</div>
+        <h2 class="section-title">From JD to ranked candidates <span>in minutes</span></h2>
+      </div>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">01</div>
+          <div class="step-content">
+            <div class="step-title">Upload or Paste your Job Description</div>
+            <p class="step-desc">TalentLens AI instantly parses your JD using advanced NLP to extract must-have skills, experience requirements, seniority signals, and cultural indicators.</p>
+            <div class="step-badge"><span class="badge badge-purple">JD Parsing · 3 seconds</span></div>
+          </div>
+          <div class="step-visual">
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">DETECTED REQUIREMENTS</div>
+            <div><span class="tag tag-skill">Python</span><span class="tag tag-skill">MLOps</span><span class="tag tag-skill">LLMs</span></div>
+            <div style="margin-top:10px;"><span class="tag tag-exp">4-8 years</span><span class="tag tag-exp">Senior L5</span></div>
+            <div style="margin-top:12px;font-size:12px;color:var(--text-secondary);">✓ 5 must-have skills · ✓ 4 good-to-have · ✓ Seniority detected</div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">02</div>
+          <div class="step-content">
+            <div class="step-title">AI Scores Every Candidate</div>
+            <p class="step-desc">Our Cognitive Twin engine evaluates each candidate across 5 dimensions: technical fit, experience depth, behavioral signals, authenticity, and growth potential.</p>
+            <div class="step-badge"><span class="badge badge-blue">5-Dimension Scoring</span></div>
+          </div>
+          <div class="step-visual">
+            <div id="stepRadar" style="display:flex;flex-direction:column;gap:8px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span style="font-size:12px;color:var(--text-secondary);">Technical</span>
+                <div class="progress-bar" style="flex:1;margin:0 12px;"><div class="progress-fill" data-target="96" style="width:0%"></div></div>
+                <span style="font-size:12px;font-weight:600;">96</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span style="font-size:12px;color:var(--text-secondary);">Experience</span>
+                <div class="progress-bar" style="flex:1;margin:0 12px;"><div class="progress-fill blue" data-target="91" style="width:0%"></div></div>
+                <span style="font-size:12px;font-weight:600;">91</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span style="font-size:12px;color:var(--text-secondary);">Behavioral</span>
+                <div class="progress-bar" style="flex:1;margin:0 12px;"><div class="progress-fill green" data-target="89" style="width:0%"></div></div>
+                <span style="font-size:12px;font-weight:600;">89</span>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <span style="font-size:12px;color:var(--text-secondary);">Authenticity</span>
+                <div class="progress-bar" style="flex:1;margin:0 12px;"><div class="progress-fill" data-target="97" style="width:0%"></div></div>
+                <span style="font-size:12px;font-weight:600;">97</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">03</div>
+          <div class="step-content">
+            <div class="step-title">Surface Hidden Gems & Intelligence Cards</div>
+            <p class="step-desc">Discover undervalued candidates with explosive growth potential. Each candidate gets a rich Intelligence Card with strengths, risks, and recruiter reasoning.</p>
+            <div class="step-badge"><span class="badge badge-amber">💎 Hidden Gem Detected</span></div>
+          </div>
+          <div class="step-visual">
+            <div style="display:flex;align-items:center;gap:12px;">
+              <div class="avatar avatar-md">RK</div>
+              <div>
+                <div style="font-size:14px;font-weight:600;">Rohan Kapoor</div>
+                <div style="font-size:12px;color:var(--text-muted);">AI Product Engineer</div>
+              </div>
+              <div class="gem-badge" style="margin-left:auto;">💎 Gem</div>
+            </div>
+            <div style="margin-top:12px;font-size:12px;color:var(--text-secondary);">Growth Potential: <span style="color:#10b981;font-weight:600;">96%</span></div>
+            <div style="font-size:12px;color:var(--text-secondary);">Learning Velocity: <span style="color:#06b6d4;font-weight:600;">94%</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="cta-section">
+    <div class="container">
+      <div class="cta-box animate-pulse-glow">
+        <div class="badge badge-purple" style="margin-bottom:24px;">🚀 Start for Free · No Credit Card</div>
+        <div class="cta-title">Ready to hire like a <span style="background:var(--gradient-1);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">genius</span>?</div>
+        <p class="cta-sub">Upload your first JD and watch TalentLens AI rank your candidates with the precision of your smartest recruiter — in under 60 seconds.</p>
+        <a href="jd-analysis.html" class="btn btn-primary btn-lg" style="margin:0 auto;">
+          <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          Analyze Candidates Now
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <div id="footerPlaceholder"></div>
+</div>
+
+<script src="app.js"></script>
+<script>
+  document.getElementById('navPlaceholder').innerHTML = buildNav('index.html');
+  document.getElementById('footerPlaceholder').innerHTML = buildFooter();
+  initNetworkCanvas();
+  document.addEventListener('DOMContentLoaded', () => { setTimeout(animateProgressBars, 400); });
+  function startHomeSearch() {
+    saveTalentSearch({
+      title: document.getElementById('homeJobTitle').value || 'Senior AI/ML Engineer',
+      role: document.getElementById('homeRole').value,
+      jd: document.getElementById('homeJd').value
+    });
+    window.location.href = 'dashboard.html';
+  }
+  function showHomeUploadResult(result) {
+    document.getElementById('homeUploadStatus').textContent = result.added
+      ? `Resume Parsed. Candidate Added: ${result.candidate.name}.`
+      : `Duplicate detected: ${result.candidate.name} is already stored.`;
+  }
+  function handleHomeUpload(event) {
+    const file = event.target.files && event.target.files[0];
+    if (file) importCandidateFile(file, showHomeUploadResult);
+  }
+  function handleHomeDrop(event) {
+    event.preventDefault();
+    const file = event.dataTransfer.files && event.dataTransfer.files[0];
+    if (file) importCandidateFile(file, showHomeUploadResult);
+  }
+</script>
+</body>
+</html>

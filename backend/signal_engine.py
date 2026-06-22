@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 """Redrob signal processing for TalentLens AI."""
 
 from __future__ import annotations
@@ -13,27 +12,44 @@ class BehavioralScore:
     explanation: str
     positive_signals: list[str] = field(default_factory=list)
     risk_signals: list[str] = field(default_factory=list)
-    components: dict[str, float] = field(default_factory=dict)
+    components: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
-REDROB_SIGNAL_WEIGHTS: dict[str, float] = {
-    "recruiter_response_rate": 0.18,
-    "github_activity_score": 0.14,
-    "profile_completeness_score": 0.16,
-    "interview_completion_rate": 0.18,
-    "open_to_work_flag": 0.06,
-    "saved_by_recruiters_30d": 0.12,
-    "search_appearance_30d": 0.10,
-    "verification_strength": 0.06,
-}
+@dataclass(frozen=True)
+class BehavioralConfig:
+    """Configurable behavioral signal weights and thresholds."""
+
+    signal_weights: dict[str, float] = field(
+        default_factory=lambda: {
+            "recruiter_response_rate": 0.18,
+            "github_activity_score": 0.14,
+            "profile_completeness_score": 0.16,
+            "interview_completion_rate": 0.18,
+            "open_to_work_flag": 0.06,
+            "saved_by_recruiters_30d": 0.12,
+            "search_appearance_30d": 0.10,
+            "verification_strength": 0.06,
+        }
+    )
+    saved_by_recruiters_cap: float = 25.0
+    search_appearance_cap: float = 200.0
+    open_to_work_false_score: float = 40.0
 
 
-def compute_behavioral_score(candidate: dict[str, Any]) -> BehavioralScore:
+DEFAULT_BEHAVIORAL_CONFIG = BehavioralConfig()
+REDROB_SIGNAL_WEIGHTS = DEFAULT_BEHAVIORAL_CONFIG.signal_weights
+
+
+def compute_behavioral_score(
+    candidate: dict[str, Any],
+    config: BehavioralConfig | None = None,
+) -> BehavioralScore:
     """Compute behavioral fit from Redrob engagement and intent signals."""
 
+    active_config = config or DEFAULT_BEHAVIORAL_CONFIG
     signals = _redrob_signals(candidate)
 
     components = {
@@ -41,13 +57,19 @@ def compute_behavioral_score(candidate: dict[str, Any]) -> BehavioralScore:
         "github_activity_score": _score_rate(signals.get("github_activity_score")),
         "profile_completeness_score": _score_rate(signals.get("profile_completeness_score")),
         "interview_completion_rate": _score_rate(signals.get("interview_completion_rate")),
-        "open_to_work_flag": 100.0 if _as_bool(signals.get("open_to_work_flag")) else 40.0,
-        "saved_by_recruiters_30d": _score_capped_count(signals.get("saved_by_recruiters_30d"), cap=25),
-        "search_appearance_30d": _score_capped_count(signals.get("search_appearance_30d"), cap=200),
+        "open_to_work_flag": 100.0 if _as_bool(signals.get("open_to_work_flag")) else active_config.open_to_work_false_score,
+        "saved_by_recruiters_30d": _score_capped_count(
+            signals.get("saved_by_recruiters_30d"),
+            cap=active_config.saved_by_recruiters_cap,
+        ),
+        "search_appearance_30d": _score_capped_count(
+            signals.get("search_appearance_30d"),
+            cap=active_config.search_appearance_cap,
+        ),
         "verification_strength": _verification_strength(signals),
     }
 
-    score = _weighted_average(components, REDROB_SIGNAL_WEIGHTS)
+    score = _weighted_average(components, active_config.signal_weights)
     positives, risks = _explain_components(components, signals)
 
     if score >= 80:
@@ -64,7 +86,14 @@ def compute_behavioral_score(candidate: dict[str, Any]) -> BehavioralScore:
         explanation=summary,
         positive_signals=positives,
         risk_signals=risks,
-        components={key: round(value, 2) for key, value in components.items()},
+        components={
+            **{key: round(value, 2) for key, value in components.items()},
+            "signal_config": {
+                "signal_weights": active_config.signal_weights,
+                "saved_by_recruiters_cap": active_config.saved_by_recruiters_cap,
+                "search_appearance_cap": active_config.search_appearance_cap,
+            },
+        },
     )
 
 
@@ -174,6 +203,3 @@ def _as_bool(value: Any) -> bool:
 
 def _clamp(value: float, lower: float = 0.0, upper: float = 100.0) -> float:
     return max(lower, min(upper, value))
-=======
-
->>>>>>> 924a5b14fb6eb352666c781b20c0a7887ab2e0e7

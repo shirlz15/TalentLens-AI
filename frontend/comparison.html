@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Candidate Comparison — TalentLens AI</title>
+<meta name="description" content="Side-by-side comparison of two candidates with radar chart, score bars, skill overlap, and risk analysis."/>
+<link rel="stylesheet" href="styles.css"/>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+.cmp-page { padding: 40px 0 80px; }
+
+/* ── SELECTOR ── */
+.cand-selector {
+  display: flex; gap: 8px; flex-wrap: wrap;
+}
+.cand-pick {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px; border-radius: 10px;
+  border: 1px solid var(--border); background: var(--bg-card);
+  cursor: pointer; transition: var(--transition); font-size: 13px;
+}
+.cand-pick:hover { border-color: var(--border-glow); background: var(--bg-card-hover); }
+.cand-pick.selected-a { border-color: var(--purple); background: rgba(139,92,246,0.1); }
+.cand-pick.selected-b { border-color: var(--electric); background: rgba(6,182,212,0.1); }
+
+/* ── COMPARE HEADER ── */
+.cmp-header {
+  display: grid; grid-template-columns: 1fr auto 1fr; gap: 24px;
+  align-items: center; margin-bottom: 32px;
+}
+.cmp-header .vs { font-family:'Space Grotesk',sans-serif; font-size: 24px; font-weight: 800; color: var(--text-muted); text-align: center; }
+.cmp-candidate {
+  padding: 28px; border-radius: var(--radius);
+  display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px;
+}
+.cmp-name { font-family:'Space Grotesk',sans-serif; font-size: 18px; font-weight: 700; }
+.cmp-role { font-size: 13px; color: var(--text-muted); }
+
+/* ── COMPARISON TABLE ── */
+.cmp-table { width: 100%; }
+.cmp-row {
+  display: grid; grid-template-columns: 1fr 140px 1fr; gap: 16px;
+  padding: 16px 0; border-bottom: 1px solid rgba(255,255,255,0.04);
+  align-items: center;
+}
+.cmp-row:last-child { border-bottom: none; }
+.cmp-row .cmp-label { text-align: center; font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing:.06em; font-weight: 600; }
+.cmp-row .cmp-val-a { text-align: right; }
+.cmp-row .cmp-val-b { text-align: left; }
+.cmp-score { font-family:'Space Grotesk',sans-serif; font-size: 22px; font-weight: 800; }
+.cmp-bar-a { display: flex; justify-content: flex-end; }
+.cmp-bar-b { display: flex; justify-content: flex-start; }
+.bar-fill { height: 6px; border-radius: 99px; transition: width 1s cubic-bezier(0.4,0,0.2,1); }
+
+/* ── SKILL OVERLAP ── */
+.skill-overlap { display: flex; gap: 16px; }
+.skill-col { flex: 1; }
+.skill-col-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing:.07em; margin-bottom: 10px; }
+.skill-a { color: var(--purple); }
+.skill-b { color: var(--electric); }
+.skill-shared { color: var(--green); }
+
+/* ── RADAR ── */
+.radar-wrap { display: flex; justify-content: center; align-items: center; height: 340px; }
+
+@media(max-width:768px) {
+  .cmp-header { grid-template-columns: 1fr; }
+  .cmp-row { grid-template-columns: 1fr; gap: 8px; }
+}
+</style>
+</head>
+<body>
+<canvas id="bgCanvas"></canvas>
+<div class="page-overlay page-wrapper">
+  <div id="navPlaceholder"></div>
+  <div class="container cmp-page">
+
+    <div class="section-header animate-slide-up">
+      <div class="section-label">Comparison View</div>
+      <h1 class="section-title">Candidate <span>Comparison</span></h1>
+      <p class="section-subtitle">Select two candidates for a deep side-by-side intelligence comparison.</p>
+    </div>
+
+    <!-- SELECTOR -->
+    <div class="glass" style="padding:20px;margin-bottom:24px;" class="animate-slide-up delay-1">
+      <div style="display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start;">
+        <div style="flex:1;min-width:200px;">
+          <div style="font-size:11px;font-weight:600;color:var(--purple);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;">Candidate A</div>
+          <div class="cand-selector" id="selectorA"></div>
+        </div>
+        <div style="flex:1;min-width:200px;">
+          <div style="font-size:11px;font-weight:600;color:var(--electric);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px;">Candidate B</div>
+          <div class="cand-selector" id="selectorB"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="comparisonView"></div>
+  </div>
+  <div id="footerPlaceholder"></div>
+</div>
+
+<script src="app.js"></script>
+<script>
+document.getElementById('navPlaceholder').innerHTML = buildNav('comparison.html');
+document.getElementById('footerPlaceholder').innerHTML = buildFooter();
+initNetworkCanvas();
+
+const params = new URLSearchParams(location.search);
+let idA = parseInt(params.get('a')) || 1;
+let idB = parseInt(params.get('b')) || 2;
+let radarChart = null;
+const compareCandidates = getCandidateDatabase();
+
+function buildSelectors() {
+  const sa = document.getElementById('selectorA');
+  const sb = document.getElementById('selectorB');
+  sa.innerHTML = sb.innerHTML = '';
+  compareCandidates.forEach(c => {
+    ['A','B'].forEach(side => {
+      const el = document.createElement('div');
+      el.className = `cand-pick${side==='A' && c.id===idA?' selected-a':side==='B' && c.id===idB?' selected-b':''}`;
+      el.innerHTML = `<div class="avatar avatar-sm" style="background:${c.gradient};">${c.initials}</div><span>${c.name.split(' ')[0]}</span>`;
+      el.onclick = () => {
+        if (side==='A') idA=c.id;
+        else idB=c.id;
+        buildSelectors(); renderComparison();
+      };
+      (side==='A'?sa:sb).appendChild(el);
+    });
+  });
+}
+
+function renderComparison() {
+  const a = compareCandidates.find(x=>x.id===idA) || compareCandidates[0];
+  const b = compareCandidates.find(x=>x.id===idB) || compareCandidates[1] || compareCandidates[0];
+  if (!a||!b) return;
+
+  if (radarChart) { radarChart.destroy(); radarChart=null; }
+
+  const sharedSkills = a.skills.filter(s=>b.skills.includes(s));
+  const onlyA = a.skills.filter(s=>!b.skills.includes(s));
+  const onlyB = b.skills.filter(s=>!a.skills.includes(s));
+
+  const dims = [
+    ['Final Score', a.finalScore, b.finalScore],
+    ['Technical', a.technicalScore, b.technicalScore],
+    ['Experience', a.experienceScore, b.experienceScore],
+    ['Behavioral', a.behavioralScore, b.behavioralScore],
+    ['Authenticity', a.authenticityScore, b.authenticityScore],
+    ['Cognitive Twin', a.cognitiveTwinScore, b.cognitiveTwinScore],
+    ['Career Consistency', a.careerConsistency, b.careerConsistency],
+    ['Growth Potential', a.growthPotential, b.growthPotential],
+  ];
+
+  function winnerStyle(va,vb,side) {
+    if (side==='a') return va>vb ? 'color:var(--purple);font-weight:800;' : 'color:var(--text-secondary);';
+    return vb>va ? 'color:var(--electric);font-weight:800;' : 'color:var(--text-secondary);';
+  }
+
+  document.getElementById('comparisonView').innerHTML = `
+    <!-- HEADER -->
+    <div class="glass" style="padding:28px;margin-bottom:24px;">
+      <div class="cmp-header">
+        <div class="cmp-candidate" style="background:rgba(139,92,246,0.06);border:1px solid rgba(139,92,246,0.2);border-radius:var(--radius);">
+          <div class="avatar avatar-lg" style="background:${a.gradient};">${a.initials}</div>
+          <div class="cmp-name">${a.name}</div>
+          <div class="cmp-role">${a.role}</div>
+          <div class="cmp-role">${a.company} · ${a.experience} yrs</div>
+          ${a.hiddenGem?'<div class="gem-badge">💎 Hidden Gem</div>':''}
+          <div style="color:${getScoreColor(a.finalScore)};font-family:Space Grotesk;font-size:36px;font-weight:800;">${a.finalScore}</div>
+          <div style="font-size:11px;color:var(--text-muted);">Final Score</div>
+        </div>
+        <div class="vs">VS</div>
+        <div class="cmp-candidate" style="background:rgba(6,182,212,0.06);border:1px solid rgba(6,182,212,0.2);border-radius:var(--radius);">
+          <div class="avatar avatar-lg" style="background:${b.gradient};">${b.initials}</div>
+          <div class="cmp-name">${b.name}</div>
+          <div class="cmp-role">${b.role}</div>
+          <div class="cmp-role">${b.company} · ${b.experience} yrs</div>
+          ${b.hiddenGem?'<div class="gem-badge">💎 Hidden Gem</div>':''}
+          <div style="color:${getScoreColor(b.finalScore)};font-family:Space Grotesk;font-size:36px;font-weight:800;">${b.finalScore}</div>
+          <div style="font-size:11px;color:var(--text-muted);">Final Score</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RADAR + SCORE TABLE -->
+    <div class="grid-2" style="margin-bottom:24px;align-items:start;">
+      <div class="glass" style="padding:28px;">
+        <h3 style="font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700;margin-bottom:16px;">📡 Radar Comparison</h3>
+        <div class="radar-wrap"><canvas id="radarChart"></canvas></div>
+      </div>
+      <div class="glass" style="padding:28px;">
+        <h3 style="font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700;margin-bottom:16px;">📊 Score Breakdown</h3>
+        <div class="cmp-table">
+          ${dims.map(([label,va,vb])=>`
+            <div class="cmp-row">
+              <div class="cmp-val-a">
+                <div class="cmp-score" style="${winnerStyle(va,vb,'a')}">${va}</div>
+                <div class="cmp-bar-a"><div style="width:${va}px;max-width:80px;"><div class="bar-fill" style="background:var(--purple);width:${va}%;max-width:80px;"></div></div></div>
+              </div>
+              <div class="cmp-label">${label}</div>
+              <div class="cmp-val-b">
+                <div class="cmp-score" style="${winnerStyle(va,vb,'b')}">${vb}</div>
+                <div class="cmp-bar-b"><div style="width:${vb}px;max-width:80px;"><div class="bar-fill" style="background:var(--electric);width:${vb}%;max-width:80px;"></div></div></div>
+              </div>
+            </div>`).join('')}
+        </div>
+      </div>
+    </div>
+
+    <!-- SKILL OVERLAP -->
+    <div class="glass" style="padding:28px;margin-bottom:24px;">
+      <h3 style="font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700;margin-bottom:20px;">🔀 Skill Overlap Analysis</h3>
+      <div class="skill-overlap">
+        <div class="skill-col">
+          <div class="skill-col-title skill-a">Only ${a.name.split(' ')[0]}</div>
+          ${onlyA.map(s=>`<div class="tag tag-skill" style="display:block;margin:4px 0;">${s}</div>`).join('')}
+        </div>
+        <div class="skill-col">
+          <div class="skill-col-title skill-shared">Shared Skills</div>
+          ${sharedSkills.map(s=>`<div class="tag" style="background:rgba(16,185,129,0.12);color:#6ee7b7;border:1px solid rgba(16,185,129,0.25);display:block;margin:4px 0;">${s}</div>`).join('')}
+          ${sharedSkills.length===0?'<span style="font-size:13px;color:var(--text-muted);">No overlap</span>':''}
+        </div>
+        <div class="skill-col">
+          <div class="skill-col-title skill-b">Only ${b.name.split(' ')[0]}</div>
+          ${onlyB.map(s=>`<div class="tag" style="background:rgba(6,182,212,0.12);color:#67e8f9;border:1px solid rgba(6,182,212,0.25);display:block;margin:4px 0;">${s}</div>`).join('')}
+        </div>
+      </div>
+    </div>
+
+    <!-- RISK COMPARISON -->
+    <div class="grid-2" style="margin-bottom:24px;">
+      <div class="glass" style="padding:24px;">
+        <h3 style="font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700;margin-bottom:12px;">⚠️ ${a.name.split(' ')[0]} Risk Profile</h3>
+        <div class="insight-box ${a.riskLevel==='Low'?'green':'amber'}" style="margin:0;">
+          <div class="ib-label">${a.riskLevel} Risk</div>
+          <p class="ib-text">${a.authenticityRisk}</p>
+        </div>
+      </div>
+      <div class="glass" style="padding:24px;">
+        <h3 style="font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700;margin-bottom:12px;">⚠️ ${b.name.split(' ')[0]} Risk Profile</h3>
+        <div class="insight-box ${b.riskLevel==='Low'?'green':'amber'}" style="margin:0;">
+          <div class="ib-label">${b.riskLevel} Risk</div>
+          <p class="ib-text">${b.authenticityRisk}</p>
+        </div>
+      </div>
+    </div>`;
+
+  // Radar chart
+  const ctx = document.getElementById('radarChart').getContext('2d');
+  const labels = ['Technical','Experience','Behavioral','Authenticity','Cognitive Twin','Growth'];
+  radarChart = new Chart(ctx, {
+    type: 'radar',
+    data: {
+      labels,
+      datasets: [
+        { label: a.name.split(' ')[0], data: [a.technicalScore,a.experienceScore,a.behavioralScore,a.authenticityScore,a.cognitiveTwinScore,a.growthPotential], backgroundColor:'rgba(139,92,246,0.15)', borderColor:'#8b5cf6', pointBackgroundColor:'#8b5cf6', borderWidth:2 },
+        { label: b.name.split(' ')[0], data: [b.technicalScore,b.experienceScore,b.behavioralScore,b.authenticityScore,b.cognitiveTwinScore,b.growthPotential], backgroundColor:'rgba(6,182,212,0.15)', borderColor:'#06b6d4', pointBackgroundColor:'#06b6d4', borderWidth:2 }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: true,
+      scales: { r: { min:50, max:100, ticks:{color:'#475569',font:{size:9}}, grid:{color:'rgba(255,255,255,0.06)'}, pointLabels:{color:'#94a3b8',font:{size:11,family:'Inter'}}, angleLines:{color:'rgba(255,255,255,0.06)'} } },
+      plugins: { legend: { labels: { color:'#94a3b8', font:{family:'Inter',size:12} } } }
+    }
+  });
+}
+
+buildSelectors();
+renderComparison();
+</script>
+</body>
+</html>

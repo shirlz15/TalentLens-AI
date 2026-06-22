@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 """Job description parsing utilities for TalentLens AI.
 
 The parser is intentionally deterministic: challenge submissions should be
@@ -30,10 +29,19 @@ SKILL_ALIASES: dict[str, tuple[str, ...]] = {
     "python": ("python", "py"),
     "sql": ("sql", "postgres", "postgresql", "mysql", "sqlite"),
     "machine learning": ("machine learning", "ml", "scikit-learn", "sklearn"),
-    "deep learning": ("deep learning", "neural network", "pytorch", "tensorflow", "keras"),
-    "nlp": ("nlp", "natural language processing", "llm", "large language model"),
+    "deep learning": ("deep learning", "neural network", "keras"),
+    "pytorch": ("pytorch", "torch"),
+    "tensorflow": ("tensorflow", "tf"),
+    "nlp": ("nlp", "natural language processing"),
+    "llm": ("llm", "large language model", "large language models"),
+    "rag": ("rag", "retrieval augmented generation", "retrieval-augmented generation"),
+    "langchain": ("langchain", "lang chain"),
+    "vector db": ("vector db", "vector database", "pinecone", "weaviate", "faiss", "chroma", "chromadb"),
+    "prompt engineering": ("prompt engineering", "prompt design", "prompting"),
     "data analysis": ("data analysis", "analytics", "eda", "exploratory data analysis"),
-    "data engineering": ("data engineering", "etl", "elt", "data pipeline", "airflow"),
+    "data engineering": ("data engineering", "data pipeline", "data pipelines"),
+    "etl": ("etl", "elt"),
+    "airflow": ("airflow", "apache airflow"),
     "statistics": ("statistics", "statistical", "hypothesis testing", "probability"),
     "excel": ("excel", "google sheets", "spreadsheet"),
     "pandas": ("pandas",),
@@ -199,6 +207,3 @@ def _contains_phrase(text: str, phrase: str) -> bool:
 
 def _normalize_text(text: str) -> str:
     return re.sub(r"\s+", " ", text.lower()).strip()
-=======
-
->>>>>>> 924a5b14fb6eb352666c781b20c0a7887ab2e0e7

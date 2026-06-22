@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Candidate Rankings - TalentLens AI</title>
+<meta name="description" content="AI-ranked candidates from the stored TalentLens database."/>
+<link rel="stylesheet" href="styles.css"/>
+<style>
+.rank-page { padding: 40px 0 80px; }
+.summary-bar { display:flex; gap:16px; flex-wrap:wrap; padding:20px 24px; margin-bottom:24px; }
+.summary-item { text-align:center; flex:1; min-width:100px; }
+.summary-item .s-val { font-family:'Space Grotesk',sans-serif; font-size:24px; font-weight:700; }
+.summary-item .s-lab { font-size:11px; color:var(--text-muted); }
+.score-pill { display:inline-flex; padding:4px 10px; border-radius:8px; font-size:13px; font-weight:800; font-family:'Space Grotesk',sans-serif; }
+.score-pill.high { background:rgba(16,185,129,.15); color:var(--green); }
+.score-pill.mid { background:rgba(99,102,241,.15); color:#a5b4fc; }
+.score-pill.low { background:rgba(245,158,11,.15); color:var(--amber); }
+.rank-badge { width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;font-family:'Space Grotesk',sans-serif;background:rgba(255,255,255,.08);color:var(--text-secondary); }
+.rank-badge.top { background:linear-gradient(135deg,#f59e0b,#d97706); color:#1a0f00; }
+.table-wrapper { overflow-x:auto; }
+.filter-toggle-gem { padding:8px 16px;border-radius:8px;border:1px solid rgba(245,158,11,.3);background:rgba(245,158,11,.08);color:#fbbf24;font-size:13px;font-weight:600;cursor:pointer; }
+.filter-toggle-gem.active { background:rgba(245,158,11,.18); }
+.sidebar-overlay { position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:900;display:none;backdrop-filter:blur(4px); }
+.sidebar-overlay.open { display:flex;justify-content:flex-end; }
+.detail-sidebar { width:460px;max-width:100%;height:100%;overflow-y:auto;background:#0d1224;border-left:1px solid var(--border);padding:32px 28px; }
+.sidebar-close { width:36px;height:36px;border-radius:8px;border:1px solid var(--border);background:var(--bg-card);color:var(--text-secondary);cursor:pointer;margin-bottom:24px; }
+</style>
+</head>
+<body>
+<canvas id="bgCanvas"></canvas>
+<div class="page-overlay page-wrapper">
+  <div id="navPlaceholder"></div>
+  <main class="container rank-page">
+    <div class="section-header animate-slide-up">
+      <div class="section-label">Stored Database Ranking</div>
+      <h1 class="section-title">Candidate <span>Rankings</span></h1>
+      <p class="section-subtitle" id="dashboardSubtitle">AI-ranked candidates from the TalentLens database.</p>
+    </div>
+
+    <div class="glass summary-bar animate-slide-up delay-1">
+      <div class="summary-item"><div class="s-val" id="sumTotal" style="color:var(--green)">0</div><div class="s-lab">Ranked Profiles</div></div>
+      <div class="summary-item"><div class="s-val" id="sumAvg" style="background:var(--gradient-1);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">0</div><div class="s-lab">Avg Score</div></div>
+      <div class="summary-item"><div class="s-val" id="sumGems" style="color:#fbbf24">0</div><div class="s-lab">Hidden Gems</div></div>
+      <div class="summary-item"><div class="s-val" id="sumUserAdded" style="color:var(--electric)">0</div><div class="s-lab">User Added</div></div>
+      <div class="summary-item"><div class="s-val" id="sumTop" style="color:var(--purple)">0</div><div class="s-lab">Top Score</div></div>
+    </div>
+
+    <div class="glass filter-bar animate-slide-up delay-2">
+      <div class="search-wrap"><span class="search-icon">Search</span><input type="text" id="searchInput" class="search-input" placeholder="Search candidates..." oninput="filterCandidates()"/></div>
+      <select id="filterSkill" class="filter-select" onchange="filterCandidates()"></select>
+      <select id="filterSource" class="filter-select" onchange="filterCandidates()">
+        <option value="">All Sources</option>
+        <option value="Built-In">Built-In</option>
+        <option value="User Added">User Added</option>
+      </select>
+      <select id="filterExp" class="filter-select" onchange="filterCandidates()">
+        <option value="">Any Experience</option>
+        <option value="0-4">0-4 years</option>
+        <option value="4-7">4-7 years</option>
+        <option value="7+">7+ years</option>
+      </select>
+      <button class="filter-toggle-gem" id="gemToggle" onclick="toggleGemFilter()">Hidden Gems Only</button>
+    </div>
+
+    <div class="glass animate-slide-up delay-3">
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Rank</th><th>Candidate</th><th>Final</th><th>Technical</th><th>Experience</th><th>Cognitive Twin</th><th>Source</th><th>Match Evidence</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="candidateTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+  <div id="footerPlaceholder"></div>
+</div>
+
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar(event)">
+  <div class="detail-sidebar">
+    <button class="sidebar-close" onclick="document.getElementById('sidebarOverlay').classList.remove('open')">x</button>
+    <div id="sidebarContent"></div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+<script>
+document.getElementById('navPlaceholder').innerHTML = buildNav('dashboard.html');
+document.getElementById('footerPlaceholder').innerHTML = buildFooter();
+initNetworkCanvas();
+
+let gemOnly = false;
+let activeRankings = getRankedCandidatesForActiveSearch();
+
+function scorePill(score) {
+  const cls = score >= 88 ? 'high' : score >= 75 ? 'mid' : 'low';
+  return `<span class="score-pill ${cls}">${score}</span>`;
+}
+
+function updateSummary(data) {
+  const search = getTalentSearch();
+  document.getElementById('dashboardSubtitle').innerHTML = `Ranking <strong style="color:var(--text-primary)">${search.title || 'Selected Role'}</strong> from ${getCandidateDatabase().length} stored profiles.`;
+  document.getElementById('sumTotal').textContent = data.length;
+  document.getElementById('sumAvg').textContent = data.length ? (data.reduce((s,c)=>s+c.finalScore,0)/data.length).toFixed(1) : '0';
+  document.getElementById('sumGems').textContent = data.filter(c => c.hiddenGem).length;
+  document.getElementById('sumUserAdded').textContent = data.filter(c => c.source === 'User Added').length;
+  document.getElementById('sumTop').textContent = data[0]?.finalScore || 0;
+}
+
+function populateSkillFilter() {
+  const skills = [...new Set(getCandidateDatabase().flatMap(c => c.skills))].sort();
+  document.getElementById('filterSkill').innerHTML = `<option value="">All Skills</option>` + skills.map(s => `<option>${s}</option>`).join('');
+}
+
+function renderTable(data) {
+  const tbody = document.getElementById('candidateTableBody');
+  tbody.innerHTML = data.map((c, i) => `
+    <tr>
+      <td><div class="rank-badge ${i === 0 ? 'top' : ''}">${i + 1}</div></td>
+      <td>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div class="avatar avatar-sm" style="background:${c.gradient};">${c.initials}</div>
+          <div>
+            <div style="font-weight:700;">${c.name} ${c.hiddenGem ? '<span class="gem-badge" style="font-size:10px;padding:3px 8px;">Gem</span>' : ''}</div>
+            <div style="font-size:12px;color:var(--text-muted);">${c.role} · ${c.location}</div>
+          </div>
+        </div>
+      </td>
+      <td>${scorePill(c.finalScore)}</td>
+      <td>${scorePill(c.technicalScore)}</td>
+      <td>${scorePill(c.experienceScore)}</td>
+      <td>${scorePill(c.cognitiveTwinScore)}</td>
+      <td><span class="badge ${c.source === 'User Added' ? 'badge-electric' : 'badge-blue'}">${c.source}</span></td>
+      <td style="color:var(--text-secondary);font-size:13px;">${c.searchReason}</td>
+      <td><button class="btn btn-secondary btn-sm" onclick="openSidebar(${c.id})">View Card</button></td>
+    </tr>
+  `).join('');
+  updateSummary(data);
+}
+
+function filterCandidates() {
+  const q = document.getElementById('searchInput').value.toLowerCase();
+  const skill = document.getElementById('filterSkill').value;
+  const source = document.getElementById('filterSource').value;
+  const expRange = document.getElementById('filterExp').value;
+  let data = [...activeRankings];
+  if (q) data = data.filter(c => `${c.name} ${c.role} ${c.company}`.toLowerCase().includes(q));
+  if (skill) data = data.filter(c => c.skills.includes(skill));
+  if (source) data = data.filter(c => c.source === source);
+  if (expRange === '0-4') data = data.filter(c => c.experience <= 4);
+  if (expRange === '4-7') data = data.filter(c => c.experience > 4 && c.experience <= 7);
+  if (expRange === '7+') data = data.filter(c => c.experience > 7);
+  if (gemOnly) data = data.filter(c => c.hiddenGem);
+  renderTable(data);
+}
+
+function toggleGemFilter() {
+  gemOnly = !gemOnly;
+  document.getElementById('gemToggle').classList.toggle('active', gemOnly);
+  filterCandidates();
+}
+
+function openSidebar(id) {
+  const c = activeRankings.find(x => x.id === id);
+  if (!c) return;
+  document.getElementById('sidebarContent').innerHTML = `
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;">
+      <div class="avatar avatar-lg" style="background:${c.gradient};">${c.initials}</div>
+      <div>
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:800;">${c.name}</div>
+        <div style="color:var(--text-muted);font-size:14px;">${c.role}</div>
+        <div style="margin-top:8px;"><span class="badge ${c.source === 'User Added' ? 'badge-electric' : 'badge-blue'}">${c.source}</span></div>
+      </div>
+    </div>
+    <div class="grid-2" style="gap:12px;margin-bottom:18px;">
+      <div class="glass stat-card"><div class="stat-label">Final</div><div class="stat-value">${c.finalScore}</div></div>
+      <div class="glass stat-card"><div class="stat-label">Twin</div><div class="stat-value">${c.cognitiveTwinScore}</div></div>
+    </div>
+    <div class="field-label" style="font-size:12px;color:var(--text-muted);text-transform:uppercase;margin-bottom:8px;">Matched skills</div>
+    <div style="margin-bottom:18px;">${(c.matchedSkills || []).map(s => `<span class="tag tag-skill">${s}</span>`).join('') || '<span class="tag tag-exp">Adjacent match</span>'}</div>
+    <div class="divider"></div>
+    <p style="color:var(--text-secondary);font-size:14px;line-height:1.7;">${c.whyRanked}</p>
+    <p style="color:var(--text-secondary);font-size:14px;line-height:1.7;margin-top:12px;">${c.recruiterReasoning}</p>
+  `;
+  document.getElementById('sidebarOverlay').classList.add('open');
+}
+
+function closeSidebar(event) {
+  if (event.target === document.getElementById('sidebarOverlay')) document.getElementById('sidebarOverlay').classList.remove('open');
+}
+
+populateSkillFilter();
+renderTable(activeRankings);
+</script>
+</body>
+</html>
