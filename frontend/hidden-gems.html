@@ -82,6 +82,7 @@ function renderHiddenGems() {
       </div>
       <div class="reason-box"><strong>Why traditional screening might miss this candidate:</strong> ${getHiddenGemReason(c)}</div>
       <div class="reason-box" style="border-left-color:var(--purple);background:rgba(139,92,246,.08);"><strong>Recruiter reasoning:</strong> ${c.recruiterReasoning}</div>
+      <div class="reason-box" style="border-left-color:var(--green);background:rgba(16,185,129,.08);"><strong>Recruiter recommendation:</strong> ${getRecruiterDecision(c)} with ${getConfidenceLevel(c.hiringConfidence)} hiring confidence. ${getExecutiveSummary(c)}</div>
       <a href="candidate-card.html?id=${c.id}" class="btn btn-secondary">Open Intelligence Card</a>
     </article>
   `).join('') : '<div class="empty-gems">No hidden gems detected for the current search. Try a broader role or upload an early-career candidate with strong projects.</div>';

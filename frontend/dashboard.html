@@ -68,7 +68,7 @@
         <table class="data-table">
           <thead>
             <tr>
-              <th>Rank</th><th>Candidate</th><th>Final</th><th>Technical</th><th>Experience</th><th>Cognitive Twin</th><th>Source</th><th>Match Evidence</th><th></th>
+              <th>Rank</th><th>Candidate</th><th>Profile Evidence</th><th>Final</th><th>Technical</th><th>Experience</th><th>Cognitive Twin</th><th>Source</th><th>Match Evidence</th><th></th>
             </tr>
           </thead>
           <tbody id="candidateTableBody"></tbody>
@@ -129,6 +129,13 @@ function renderTable(data) {
           </div>
         </div>
       </td>
+      <td>
+        <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;">
+          <strong style="color:var(--text-primary);">${c.education || 'Education not extracted'}</strong><br/>
+          ${c.experience || 0} yrs experience<br/>
+          ${(c.skills || []).slice(0,4).map(skill => `<span class="tag tag-skill">${skill}</span>`).join('')}
+        </div>
+      </td>
       <td>${scorePill(c.finalScore)}</td>
       <td>${scorePill(c.technicalScore)}</td>
       <td>${scorePill(c.experienceScore)}</td>
@@ -181,6 +188,13 @@ function openSidebar(id) {
     </div>
     <div class="field-label" style="font-size:12px;color:var(--text-muted);text-transform:uppercase;margin-bottom:8px;">Matched skills</div>
     <div style="margin-bottom:18px;">${(c.matchedSkills || []).map(s => `<span class="tag tag-skill">${s}</span>`).join('') || '<span class="tag tag-exp">Adjacent match</span>'}</div>
+    <div class="field-label" style="font-size:12px;color:var(--text-muted);text-transform:uppercase;margin-bottom:8px;">Extracted profile</div>
+    <div style="color:var(--text-secondary);font-size:14px;line-height:1.7;margin-bottom:18px;">
+      Education: ${c.education || 'Not extracted'}<br/>
+      College: ${c.college || 'Not extracted'}<br/>
+      Experience: ${c.experience || 0} years<br/>
+      Skills: ${(c.skills || []).join(', ')}
+    </div>
     <div class="divider"></div>
     <p style="color:var(--text-secondary);font-size:14px;line-height:1.7;">${c.whyRanked}</p>
     <p style="color:var(--text-secondary);font-size:14px;line-height:1.7;margin-top:12px;">${c.recruiterReasoning}</p>

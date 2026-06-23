@@ -111,7 +111,7 @@ const params = new URLSearchParams(location.search);
 let idA = parseInt(params.get('a')) || 1;
 let idB = parseInt(params.get('b')) || 2;
 let radarChart = null;
-const compareCandidates = getCandidateDatabase();
+const compareCandidates = getRankedCandidatesForActiveSearch();
 
 function buildSelectors() {
   const sa = document.getElementById('selectorA');
@@ -121,7 +121,7 @@ function buildSelectors() {
     ['A','B'].forEach(side => {
       const el = document.createElement('div');
       el.className = `cand-pick${side==='A' && c.id===idA?' selected-a':side==='B' && c.id===idB?' selected-b':''}`;
-      el.innerHTML = `<div class="avatar avatar-sm" style="background:${c.gradient};">${c.initials}</div><span>${c.name.split(' ')[0]}</span>`;
+      el.innerHTML = `<div class="avatar avatar-sm" style="background:${c.gradient};">${c.initials}</div><span>${c.name}</span>`;
       el.onclick = () => {
         if (side==='A') idA=c.id;
         else idB=c.id;
@@ -168,6 +168,7 @@ function renderComparison() {
           <div class="cmp-name">${a.name}</div>
           <div class="cmp-role">${a.role}</div>
           <div class="cmp-role">${a.company} · ${a.experience} yrs</div>
+          <div class="cmp-role">${a.education || 'Education not extracted'}</div>
           ${a.hiddenGem?'<div class="gem-badge">💎 Hidden Gem</div>':''}
           <div style="color:${getScoreColor(a.finalScore)};font-family:Space Grotesk;font-size:36px;font-weight:800;">${a.finalScore}</div>
           <div style="font-size:11px;color:var(--text-muted);">Final Score</div>
@@ -178,6 +179,7 @@ function renderComparison() {
           <div class="cmp-name">${b.name}</div>
           <div class="cmp-role">${b.role}</div>
           <div class="cmp-role">${b.company} · ${b.experience} yrs</div>
+          <div class="cmp-role">${b.education || 'Education not extracted'}</div>
           ${b.hiddenGem?'<div class="gem-badge">💎 Hidden Gem</div>':''}
           <div style="color:${getScoreColor(b.finalScore)};font-family:Space Grotesk;font-size:36px;font-weight:800;">${b.finalScore}</div>
           <div style="font-size:11px;color:var(--text-muted);">Final Score</div>

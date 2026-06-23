@@ -47,11 +47,13 @@
   animation: slide-up 0.6s ease 0.3s both;
 }
 .home-search {
-  margin: 34px auto 0; max-width: 980px; padding: 20px;
+  margin: 38px auto 0; max-width: 980px; padding: 22px;
   background: rgba(255,255,255,0.05); border: 1px solid var(--border);
   border-radius: 16px; display: grid; grid-template-columns: 1.1fr .9fr; gap: 16px; text-align:left;
-  animation: slide-up 0.6s ease 0.35s both;
+  animation: slide-up 0.6s ease 0.48s both;
+  box-shadow: 0 24px 80px rgba(0,0,0,.28);
 }
+.home-search::before { content:'RECRUITER COMMAND CENTER'; grid-column:1/-1; color:var(--purple); font-size:11px; font-weight:800; letter-spacing:.12em; }
 .home-search-left { display:grid; grid-template-columns:1fr 180px; gap:12px; }
 .home-search input, .home-search select, .home-search textarea {
   width: 100%; background: rgba(255,255,255,0.06); border: 1px solid var(--border);
@@ -155,6 +157,19 @@
         TalentLens AI doesn't just rank resumes — it thinks like your best recruiter. 
         Surface hidden gems, detect authenticity, and hire with explainable AI confidence.
       </p>
+      <div class="hero-actions">
+        <a href="jd-analysis.html" class="btn btn-primary btn-lg">
+          <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          Analyze Candidates
+        </a>
+        <a href="dashboard.html" class="btn btn-secondary btn-lg">View Dashboard →</a>
+      </div>
+      <div class="hero-stats">
+        <div class="hero-stat"><div class="hero-stat-value">94%</div><div class="hero-stat-label">Ranking Accuracy</div></div>
+        <div class="hero-stat"><div class="hero-stat-value">3.2x</div><div class="hero-stat-label">Faster Shortlisting</div></div>
+        <div class="hero-stat"><div class="hero-stat-value">67%</div><div class="hero-stat-label">Hidden Gems Found</div></div>
+        <div class="hero-stat"><div class="hero-stat-value">99%</div><div class="hero-stat-label">Explainability Score</div></div>
+      </div>
       <div class="home-search">
         <div class="home-search-left">
           <input id="homeJobTitle" value="Senior AI/ML Engineer" placeholder="Search role or job title"/>
@@ -170,25 +185,12 @@
         </div>
         <div class="home-upload" ondragover="event.preventDefault()" ondrop="handleHomeDrop(event)">
           <div class="home-upload-title">Optional candidate upload</div>
-          <div class="home-upload-copy">Drop a resume PDF, DOCX, or candidate JSON to add a new profile to the TalentLens database. Rankings work even without uploads.</div>
+          <div class="home-upload-copy">Drop a resume PDF, DOCX, or candidate JSON to add a new ATS profile. Rankings already work from the built-in candidate database.</div>
           <input id="homeCandidateUpload" type="file" accept=".pdf,.docx,.json" style="display:none" onchange="handleHomeUpload(event)"/>
           <button class="btn btn-secondary" onclick="document.getElementById('homeCandidateUpload').click()">Upload New Candidate</button>
           <a href="candidate-database.html" class="btn btn-secondary">View Candidate Database</a>
           <div id="homeUploadStatus" class="home-upload-status">No upload required.</div>
         </div>
-      </div>
-      <div class="hero-actions">
-        <a href="jd-analysis.html" class="btn btn-primary btn-lg">
-          <svg width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-          Analyze Candidates
-        </a>
-        <a href="dashboard.html" class="btn btn-secondary btn-lg">View Dashboard →</a>
-      </div>
-      <div class="hero-stats">
-        <div class="hero-stat"><div class="hero-stat-value">94%</div><div class="hero-stat-label">Ranking Accuracy</div></div>
-        <div class="hero-stat"><div class="hero-stat-value">3.2x</div><div class="hero-stat-label">Faster Shortlisting</div></div>
-        <div class="hero-stat"><div class="hero-stat-value">67%</div><div class="hero-stat-label">Hidden Gems Found</div></div>
-        <div class="hero-stat"><div class="hero-stat-value">99%</div><div class="hero-stat-label">Explainability Score</div></div>
       </div>
     </div>
   </section>

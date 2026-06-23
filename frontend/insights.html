@@ -12,11 +12,16 @@
 .metric { padding:22px; }
 .chart-grid { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:24px; align-items:start; }
 .chart-card { padding:24px; }
+.intelligence-strip { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; margin-bottom:24px; }
+.intel-card { padding:24px; position:relative; overflow:hidden; }
+.intel-card::after { content:''; position:absolute; inset:auto -20px -45px auto; width:120px; height:120px; border-radius:50%; background:rgba(139,92,246,.12); filter:blur(6px); }
+.intel-title { font-family:'Space Grotesk',sans-serif; font-size:17px; font-weight:800; margin-bottom:8px; }
+.intel-copy { color:var(--text-secondary); font-size:14px; line-height:1.65; }
 .bar-row { display:flex; align-items:center; gap:12px; margin:12px 0; }
 .bar-label { width:170px; color:var(--text-secondary); font-size:13px; }
 .bar-value { width:38px; text-align:right; font-weight:800; font-family:'Space Grotesk',sans-serif; }
 .insight-note { margin-top:18px; color:var(--text-secondary); font-size:14px; line-height:1.65; }
-@media(max-width:900px){ .metric-grid,.chart-grid{ grid-template-columns:1fr; } }
+@media(max-width:900px){ .metric-grid,.chart-grid,.intelligence-strip{ grid-template-columns:1fr; } }
 </style>
 </head>
 <body>
@@ -35,6 +40,24 @@
       <div class="glass metric"><div class="stat-label">Avg Candidate Score</div><div class="stat-value" id="avgScore">0</div></div>
       <div class="glass metric"><div class="stat-label">Avg Cognitive Twin</div><div class="stat-value" id="avgTwin">0</div></div>
       <div class="glass metric"><div class="stat-label">High Confidence</div><div class="stat-value" id="highConfidence">0</div></div>
+    </section>
+
+    <section class="intelligence-strip">
+      <div class="glass intel-card">
+        <div class="section-label">Hidden Gem Analytics</div>
+        <div class="intel-title" id="hiddenGemIntelTitle">Scanning overlooked talent</div>
+        <p class="intel-copy" id="hiddenGemIntelCopy">TalentLens separates immediate-fit shortlists from high-upside candidates that traditional filters may miss.</p>
+      </div>
+      <div class="glass intel-card">
+        <div class="section-label">Cognitive Twin Analytics</div>
+        <div class="intel-title" id="twinIntelTitle">Recruiter reasoning layer</div>
+        <p class="intel-copy" id="twinIntelCopy">The twin score blends technical fit, consistency, authenticity, and recruiter engagement signals.</p>
+      </div>
+      <div class="glass intel-card">
+        <div class="section-label">Hiring Confidence</div>
+        <div class="intel-title" id="confidenceIntelTitle">Evidence quality view</div>
+        <p class="intel-copy" id="confidenceIntelCopy">Confidence levels are based on profile completeness, consistency, authenticity, and signal strength.</p>
+      </div>
     </section>
 
     <section class="chart-grid">
@@ -120,8 +143,17 @@ function renderInsights() {
   document.getElementById('avgScore').textContent = avg('finalScore');
   document.getElementById('avgTwin').textContent = avg('cognitiveTwinScore');
   document.getElementById('highConfidence').textContent = data.filter(c => c.confidenceLevel === 'High').length;
+  const gemCount = data.filter(c => c.hiddenGem || c.hiddenGemScore >= 84).length;
+  const topTwin = [...data].sort((a,b) => b.cognitiveTwinScore - a.cognitiveTwinScore)[0];
+  const highConfidence = data.filter(c => c.confidenceLevel === 'High').length;
+  document.getElementById('hiddenGemIntelTitle').textContent = `${gemCount} hidden gem signals detected`;
+  document.getElementById('hiddenGemIntelCopy').textContent = gemCount ? `Best hidden gem: ${data.filter(c => c.hiddenGem || c.hiddenGemScore >= 84).sort((a,b) => b.hiddenGemScore - a.hiddenGemScore)[0].name}, driven by growth potential and skill density.` : 'No high-upside hidden gems detected for the active search yet.';
+  document.getElementById('twinIntelTitle').textContent = `${avg('cognitiveTwinScore')} average cognitive twin`;
+  document.getElementById('twinIntelCopy').textContent = topTwin ? `${topTwin.name} has the strongest recruiter-style reasoning score at ${topTwin.cognitiveTwinScore}.` : 'No candidates available.';
+  document.getElementById('confidenceIntelTitle').textContent = `${highConfidence} high-confidence recommendations`;
+  document.getElementById('confidenceIntelCopy').textContent = 'High confidence combines extracted evidence, profile completeness, risk, and consistent career signals.';
 
-  renderBars('hiddenGemChart', [['Hidden Gem', data.filter(c => c.hiddenGem || c.hiddenGemScore >= 84).length], ['Traditional Fit', data.filter(c => !(c.hiddenGem || c.hiddenGemScore >= 84)).length]], 'green');
+  renderBars('hiddenGemChart', [['Hidden Gem', gemCount], ['Traditional Fit', data.filter(c => !(c.hiddenGem || c.hiddenGemScore >= 84)).length]], 'green');
   renderBars('twinChart', Object.entries(countBy(data, c => bucketScore(c.cognitiveTwinScore))).sort());
   renderBars('confidenceChart', Object.entries(countBy(data, c => c.confidenceLevel)).sort(), 'blue');
   renderBars('riskChart', Object.entries(countBy(data, c => c.riskLevel || 'Medium')).sort(), 'green');

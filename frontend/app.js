@@ -281,17 +281,22 @@ function getRankedCandidatesForActiveSearch() {
 function addCandidateToDatabase(candidate) {
   const existing = JSON.parse(localStorage.getItem(TALENTLENS_DB_KEY) || '[]');
   const duplicate = getCandidateDatabase().find(item => {
-    const sameName = item.name && candidate.name && item.name.trim().toLowerCase() === candidate.name.trim().toLowerCase();
+    const sameName = item.name && candidate.name && getNameSimilarity(item.name, candidate.name) >= 0.86;
     const sameEmail = item.email && candidate.email && item.email.trim().toLowerCase() === candidate.email.trim().toLowerCase();
     const samePhone = item.phone && candidate.phone && item.phone.replace(/\D/g, '') === candidate.phone.replace(/\D/g, '');
-    return sameName || sameEmail || samePhone;
+    const sameLinkedin = item.linkedin && candidate.linkedin && normalizeUrl(item.linkedin) === normalizeUrl(candidate.linkedin);
+    const sameGithub = item.github && candidate.github && normalizeUrl(item.github) === normalizeUrl(candidate.github);
+    return sameName || sameEmail || samePhone || sameLinkedin || sameGithub;
   });
   if (duplicate) return { added: false, candidate: duplicate };
   const nextId = Math.max(100, ...getCandidateDatabase().map(c => Number(c.id) || 0)) + 1;
+  const resumeText = candidate.resumeText || '';
+  const generated = generateCandidateIntelligence(candidate);
   existing.push({
     id: nextId,
     initials: candidate.initials || candidate.name.split(/\s+/).map(part => part[0]).join('').slice(0, 2).toUpperCase(),
     name: candidate.name,
+    candidate_name: candidate.name,
     email: candidate.email || '',
     phone: candidate.phone || '',
     linkedin: candidate.linkedin || '',
@@ -300,29 +305,32 @@ function addCandidateToDatabase(candidate) {
     company: candidate.company || 'Imported Profile',
     location: candidate.location || 'Not specified',
     experience: Number(candidate.experience || 0),
-    finalScore: Number(candidate.finalScore || 70),
-    technicalScore: Number(candidate.technicalScore || 72),
-    experienceScore: Number(candidate.experienceScore || 65),
-    behavioralScore: Number(candidate.behavioralScore || 60),
-    authenticityScore: Number(candidate.authenticityScore || 68),
-    cognitiveTwinScore: Number(candidate.cognitiveTwinScore || 70),
-    hiddenGem: Boolean(candidate.hiddenGem || false),
-    riskLevel: candidate.riskLevel || 'Medium',
+    finalScore: Number(candidate.finalScore || generated.finalScore),
+    technicalScore: Number(candidate.technicalScore || generated.technicalScore),
+    experienceScore: Number(candidate.experienceScore || generated.experienceScore),
+    behavioralScore: Number(candidate.behavioralScore || generated.behavioralScore),
+    authenticityScore: Number(candidate.authenticityScore || generated.authenticityScore),
+    cognitiveTwinScore: Number(candidate.cognitiveTwinScore || generated.cognitiveTwinScore),
+    hiddenGem: Boolean(candidate.hiddenGem || generated.hiddenGem),
+    riskLevel: candidate.riskLevel || generated.riskLevel,
     skills: candidate.skills || ['Python','SQL'],
-    strengths: candidate.strengths || ['Imported candidate profile available for ranking'],
-    weaknesses: candidate.weaknesses || ['Needs recruiter verification after upload'],
-    whyRanked: candidate.whyRanked || 'User-added candidate included in future TalentLens rankings.',
-    recruiterReasoning: candidate.recruiterReasoning || 'Added by recruiter and available for future database searches.',
-    authenticityRisk: candidate.authenticityRisk || 'Pending verification from uploaded profile.',
-    careerConsistency: Number(candidate.careerConsistency || 65),
-    growthPotential: Number(candidate.growthPotential || 72),
-    learningVelocity: Number(candidate.learningVelocity || 70),
-    technicalDepth: Number(candidate.technicalDepth || 70),
+    strengths: candidate.strengths || generated.strengths,
+    weaknesses: candidate.weaknesses || generated.weaknesses,
+    whyRanked: candidate.whyRanked || generated.whyRanked,
+    recruiterReasoning: candidate.recruiterReasoning || generated.recruiterReasoning,
+    authenticityRisk: candidate.authenticityRisk || generated.authenticityRisk,
+    careerConsistency: Number(candidate.careerConsistency || generated.careerConsistency),
+    growthPotential: Number(candidate.growthPotential || generated.growthPotential),
+    learningVelocity: Number(candidate.learningVelocity || generated.learningVelocity),
+    technicalDepth: Number(candidate.technicalDepth || generated.technicalDepth),
     education: candidate.education || 'Uploaded candidate',
+    college: candidate.college || '',
     projects: candidate.projects || [],
     certifications: candidate.certifications || [],
+    resumeText,
     gradient: candidate.gradient || 'linear-gradient(135deg,#06b6d4,#8b5cf6)',
-    source: 'User Added'
+    source: 'User Added',
+    source_code: 'USER_ADDED'
   });
   localStorage.setItem(TALENTLENS_DB_KEY, JSON.stringify(existing));
   return { added: true, candidate: existing[existing.length - 1] };
@@ -364,10 +372,202 @@ function getExecutiveSummary(candidate) {
   return `${candidate.name} is a ${confidence}-confidence ${candidate.role} profile with strong evidence across technical fit, authenticity, and recruiter reasoning. Recommended for ${decision}. Minor concern is ${concern.toLowerCase()}.`;
 }
 
-function importCandidateFile(file, onDone) {
+function normalizeUrl(value) {
+  return String(value || '').toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/$/, '');
+}
+
+function getNameSimilarity(a, b) {
+  const left = String(a || '').toLowerCase().replace(/[^a-z\s]/g, '').split(/\s+/).filter(Boolean);
+  const right = String(b || '').toLowerCase().replace(/[^a-z\s]/g, '').split(/\s+/).filter(Boolean);
+  if (!left.length || !right.length) return 0;
+  const shared = left.filter(token => right.includes(token)).length;
+  return (shared * 2) / (left.length + right.length);
+}
+
+async function extractTextFromUpload(file, buffer) {
+  const name = file.name.toLowerCase();
+  if (name.endsWith('.json')) return new TextDecoder('utf-8').decode(buffer);
+  if (name.endsWith('.docx')) {
+    const docxText = await extractDocxText(buffer);
+    if (docxText.trim()) return docxText;
+  }
+  if (name.endsWith('.pdf')) {
+    const pdfText = extractPdfText(buffer);
+    if (pdfText.trim()) return pdfText;
+  }
+  return new TextDecoder('utf-8', { fatal: false }).decode(buffer);
+}
+
+function extractPdfText(buffer) {
+  const raw = new TextDecoder('latin1').decode(buffer);
+  const pieces = [];
+  const literalMatches = raw.matchAll(/\((?:\\.|[^\\)]){2,}\)\s*Tj/g);
+  for (const match of literalMatches) pieces.push(decodePdfLiteral(match[0].replace(/\)\s*Tj$/, '').slice(1)));
+  const arrayMatches = raw.matchAll(/\[((?:\s*\((?:\\.|[^\\)])+\)\s*)+)\]\s*TJ/g);
+  for (const match of arrayMatches) {
+    const inner = [...match[1].matchAll(/\((?:\\.|[^\\)])+\)/g)].map(item => decodePdfLiteral(item[0].slice(1, -1))).join('');
+    pieces.push(inner);
+  }
+  const fallback = raw
+    .replace(/[^\x09\x0A\x0D\x20-\x7E]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .match(/[A-Z][A-Za-z .]{2,80}|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}|(?:Python|Java|SQL|Machine Learning|B\.?Tech|University|Institute)[A-Za-z .,+#-]*/gi);
+  return normalizeResumeText((pieces.join('\n') || '') + '\n' + (fallback || []).join('\n'));
+}
+
+function decodePdfLiteral(value) {
+  return value
+    .replace(/\\n/g, '\n')
+    .replace(/\\r/g, '\n')
+    .replace(/\\t/g, ' ')
+    .replace(/\\([()\\])/g, '$1')
+    .replace(/\\(\d{3})/g, (_, oct) => String.fromCharCode(parseInt(oct, 8)));
+}
+
+async function extractDocxText(buffer) {
+  const bytes = new Uint8Array(buffer);
+  const entries = [];
+  for (let i = 0; i < bytes.length - 30; i++) {
+    if (bytes[i] !== 0x50 || bytes[i+1] !== 0x4b || bytes[i+2] !== 0x03 || bytes[i+3] !== 0x04) continue;
+    const method = readU16(bytes, i + 8);
+    const compressedSize = readU32(bytes, i + 18);
+    const uncompressedSize = readU32(bytes, i + 22);
+    const nameLength = readU16(bytes, i + 26);
+    const extraLength = readU16(bytes, i + 28);
+    const filename = new TextDecoder().decode(bytes.slice(i + 30, i + 30 + nameLength));
+    const dataStart = i + 30 + nameLength + extraLength;
+    const dataEnd = dataStart + compressedSize;
+    if (filename === 'word/document.xml') {
+      let data = bytes.slice(dataStart, dataEnd);
+      if (method === 8 && typeof DecompressionStream !== 'undefined') {
+        try {
+          const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+          data = new Uint8Array(await new Response(stream).arrayBuffer());
+        } catch (error) {
+          return '';
+        }
+      }
+      if (method === 0 || method === 8) {
+        const xml = new TextDecoder('utf-8').decode(data.slice(0, uncompressedSize || data.length));
+        return normalizeResumeText(xml.replace(/<w:tab\/>/g, ' ').replace(/<\/w:p>/g, '\n').replace(/<[^>]+>/g, ' '));
+      }
+    }
+    entries.push(filename);
+  }
+  return '';
+}
+
+function readU16(bytes, offset) {
+  return bytes[offset] | (bytes[offset + 1] << 8);
+}
+
+function readU32(bytes, offset) {
+  return (bytes[offset] | (bytes[offset + 1] << 8) | (bytes[offset + 2] << 16) | (bytes[offset + 3] << 24)) >>> 0;
+}
+
+function normalizeResumeText(text) {
+  return String(text || '')
+    .replace(/\r/g, '\n')
+    .replace(/[•●▪]/g, '\n')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function pickCandidateName(lines, text) {
+  const labeled = text.match(/(?:candidate\s+name|full\s+name|name)\s*[:\-]\s*([A-Za-z][A-Za-z .'-]{1,60})/i);
+  if (labeled) return cleanName(labeled[1]);
+  const blocked = /(resume|curriculum|vitae|email|phone|mobile|linkedin|github|education|skills|project|experience|certification|profile|summary|objective|developer|engineer|intern|student)/i;
+  const candidate = lines.slice(0, 12).find(line => {
+    const clean = cleanName(line);
+    const words = clean.split(/\s+/).filter(Boolean);
+    return words.length >= 2 && words.length <= 4 && clean.length <= 50 && /^[A-Za-z .'-]+$/.test(clean) && !blocked.test(clean);
+  });
+  return candidate ? cleanName(candidate) : '';
+}
+
+function cleanName(value) {
+  return String(value || '').replace(/[^A-Za-z .'-]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function inferExperienceFromText(text) {
+  const dateMatches = [...text.matchAll(/\b(20\d{2}|19\d{2})\b/g)].map(match => Number(match[1]));
+  if (dateMatches.length >= 2) {
+    return Math.max(0, Math.min(12, Math.max(...dateMatches) - Math.min(...dateMatches)));
+  }
+  return 0;
+}
+
+function inferRoleFromSkills(skills) {
+  const set = new Set((skills || []).map(skill => skill.toLowerCase()));
+  if (set.has('machine learning') || set.has('deep learning') || set.has('pytorch')) return 'AI/ML Candidate';
+  if (set.has('react') || set.has('javascript') || set.has('node.js')) return 'Software Engineering Candidate';
+  if (set.has('sql') || set.has('tableau') || set.has('power bi')) return 'Data Candidate';
+  return 'Uploaded Resume Candidate';
+}
+
+function extractSectionItems(text, labels) {
+  const pattern = new RegExp(`(?:${labels})\\s*[:\\-]?\\s*([\\s\\S]{0,500}?)(?=\\n\\s*(?:education|skills|experience|certifications?|projects?|summary|objective|$))`, 'i');
+  const match = text.match(pattern);
+  if (!match) return [];
+  return match[1].split(/\n|;/).map(item => item.replace(/^[-*]\s*/, '').trim()).filter(item => item.length > 8).slice(0, 4);
+}
+
+function generateCandidateIntelligence(candidate) {
+  const skills = candidate.skills || [];
+  const hasContact = Boolean(candidate.email || candidate.phone || candidate.linkedin || candidate.github);
+  const hasProjects = (candidate.projects || []).length > 0;
+  const hasEducation = Boolean(candidate.education && !/uploaded/i.test(candidate.education));
+  const experience = Number(candidate.experience || 0);
+  const technicalScore = Math.min(96, 50 + skills.length * 6 + (hasProjects ? 8 : 0));
+  const experienceScore = Math.min(100, 48 + experience * 8 + (hasEducation ? 8 : 0));
+  const authenticityScore = Math.min(96, 54 + (candidate.email ? 10 : 0) + (candidate.phone ? 8 : 0) + (candidate.linkedin ? 10 : 0) + (candidate.github ? 8 : 0) + (hasEducation ? 6 : 0));
+  const behavioralScore = Math.min(92, 58 + (hasProjects ? 10 : 0) + (candidate.github ? 8 : 0) + skills.length * 2);
+  const careerConsistency = Math.min(94, 58 + experience * 5 + Math.min(16, skills.length * 2));
+  const learningVelocity = Math.min(95, 62 + skills.length * 3 + (hasProjects ? 8 : 0) + (candidate.github ? 6 : 0));
+  const growthPotential = Math.min(96, 65 + skills.length * 3 + (experience <= 3 ? 8 : 0) + (hasProjects ? 8 : 0));
+  const cognitiveTwinScore = Math.round(technicalScore * 0.3 + experienceScore * 0.18 + behavioralScore * 0.17 + authenticityScore * 0.18 + careerConsistency * 0.17);
+  const finalScore = Math.round(technicalScore * 0.34 + experienceScore * 0.20 + behavioralScore * 0.20 + authenticityScore * 0.15 + careerConsistency * 0.11);
+  const hiddenGem = growthPotential >= 84 && experience <= 4;
+  const riskLevel = authenticityScore >= 78 ? 'Low' : authenticityScore >= 62 ? 'Medium' : 'High';
+  const strengths = [
+    skills.length ? `Extracted ${skills.length} skills from uploaded resume: ${skills.slice(0, 5).join(', ')}` : 'Resume profile extracted for recruiter review',
+    hasEducation ? `Education evidence found: ${candidate.education}` : '',
+    hasProjects ? 'Project evidence supports hands-on capability' : '',
+    candidate.github ? 'GitHub signal available for technical validation' : ''
+  ].filter(Boolean);
+  const weaknesses = [
+    !hasContact ? 'Limited contact or verification signals extracted' : '',
+    !hasProjects ? 'No structured project details extracted' : '',
+    !candidate.linkedin ? 'LinkedIn profile not extracted' : '',
+    experience === 0 ? 'Years of experience not explicit in resume' : ''
+  ].filter(Boolean);
+  return {
+    finalScore,
+    technicalScore,
+    experienceScore,
+    behavioralScore,
+    authenticityScore,
+    cognitiveTwinScore,
+    careerConsistency,
+    growthPotential,
+    learningVelocity,
+    technicalDepth: technicalScore,
+    hiddenGem,
+    riskLevel,
+    strengths: strengths.length ? strengths : ['Uploaded resume parsed into a candidate profile'],
+    weaknesses: weaknesses.length ? weaknesses : ['No major extraction gaps detected'],
+    authenticityRisk: `${riskLevel} - based on extracted contact, education, profile links, and resume evidence density.`,
+    recruiterReasoning: `${candidate.name} has ${skills.slice(0, 4).join(', ') || 'relevant'} signals with ${experience || 'unspecified'} years of experience and ${riskLevel.toLowerCase()} authenticity risk.`,
+    whyRanked: `Ranked from extracted resume content: ${candidate.name}, ${candidate.education || 'education available'}, ${skills.slice(0, 6).join(', ') || 'skills pending verification'}.`,
+  };
+}
+
+async function importCandidateFile(file, onDone) {
   const reader = new FileReader();
-  reader.onload = () => {
-    const text = String(reader.result || '');
+  reader.onload = async () => {
+    const buffer = reader.result;
+    const text = await extractTextFromUpload(file, buffer);
     let candidate;
     if (file.name.toLowerCase().endsWith('.json')) {
       const parsed = JSON.parse(text);
@@ -382,53 +582,58 @@ function importCandidateFile(file, onDone) {
         experience: profile.years_experience || parsed.years_experience || 0,
         skills: parsed.skills || profile.skills || ['Python','SQL'],
         education: Array.isArray(parsed.education) ? parsed.education.map(e => e.degree || e.school || JSON.stringify(e)).join(', ') : (parsed.education || 'Uploaded JSON'),
+        college: profile.college || parsed.college || '',
         projects: parsed.projects || [],
-        certifications: parsed.certifications || []
+        certifications: parsed.certifications || [],
+        resumeText: text
       };
     } else {
       candidate = {
         ...extractCandidateProfileFromText(text, file.name),
-        strengths: ['Resume uploaded and added to the TalentLens database'],
-        weaknesses: ['Resume details should be verified before final decision'],
-        whyRanked: 'Candidate was uploaded by the recruiter and is now included in stored database rankings.'
+        resumeText: text
       };
     }
     const result = addCandidateToDatabase(candidate);
     if (onDone) onDone(result);
   };
-  reader.readAsText(file);
+  reader.readAsArrayBuffer(file);
 }
 
 function extractCandidateProfileFromText(text, filename) {
-  const lines = text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+  const cleanedText = normalizeResumeText(text);
+  const lines = cleanedText.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
   const findLabel = label => {
-    const match = text.match(new RegExp(`${label}\\s*[:\\-]\\s*(.+)`, 'i'));
+    const match = cleanedText.match(new RegExp(`${label}\\s*[:\\-]\\s*(.+)`, 'i'));
     return match ? match[1].split(/\r?\n/)[0].trim() : '';
   };
-  const name = findLabel('name') || lines.find(line => /^[A-Z][a-z]+(?:\s+[A-Z][a-zA-Z.]*){1,3}$/.test(line)) || filename.replace(/\.(pdf|docx)$/i, '').replace(/[_-]+/g, ' ');
-  const email = (text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i) || [''])[0];
-  const phone = (text.match(/(?:\+?91[-\s]?)?[6-9]\d{9}/) || [''])[0];
-  const linkedin = (text.match(/https?:\/\/(?:www\.)?linkedin\.com\/[^\s]+/i) || [''])[0];
-  const github = (text.match(/https?:\/\/(?:www\.)?github\.com\/[^\s]+/i) || [''])[0];
-  const skillsText = findLabel('skills') || text;
-  const knownSkills = ['Python','SQL','Machine Learning','Deep Learning','PyTorch','TensorFlow','LLMs','RAG','LangChain','Vector DBs','MLOps','Kubernetes','Spark','Airflow','React','FastAPI','Docker','NLP','Tableau','Power BI','Git','AWS','GCP'];
+  const name = pickCandidateName(lines, cleanedText);
+  const email = (cleanedText.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i) || [''])[0];
+  const phone = (cleanedText.match(/(?:\+?91[-\s]?)?[6-9]\d{9}/) || cleanedText.match(/(?:\+\d{1,3}[-\s]?)?(?:\d[-\s]?){8,14}\d/) || [''])[0].trim();
+  const linkedin = (cleanedText.match(/(?:https?:\/\/)?(?:www\.)?linkedin\.com\/[^\s)]+/i) || [''])[0];
+  const github = (cleanedText.match(/(?:https?:\/\/)?(?:www\.)?github\.com\/[^\s)]+/i) || [''])[0];
+  const skillsText = findLabel('skills') || cleanedText;
+  const knownSkills = ['Python','SQL','Machine Learning','Deep Learning','PyTorch','TensorFlow','LLMs','RAG','LangChain','Vector DBs','MLOps','Kubernetes','Spark','Airflow','React','FastAPI','Docker','NLP','Tableau','Power BI','Git','AWS','GCP','Java','JavaScript','TypeScript','Node.js','Excel','Statistics','Pandas','NumPy','Scikit-learn','HTML','CSS','MongoDB','MySQL','PostgreSQL'];
   const skills = knownSkills.filter(skill => skillsText.toLowerCase().includes(skill.toLowerCase()) || (skill === 'LLMs' && skillsText.toLowerCase().includes('llm')));
-  const experience = Number((text.match(/(\d+(?:\.\d+)?)\+?\s*(?:years|yrs)/i) || [0, 0])[1]) || 0;
-  const education = findLabel('education') || (text.match(/(BTech|MTech|MBA|B\.Tech|M\.Tech|BSc|MSc|PhD|IIT|NIT|IIIT)[^\n]*/i) || ['Uploaded resume'])[0];
-  const projects = findLabel('projects') ? [findLabel('projects')] : [];
-  const certifications = findLabel('certifications') ? [findLabel('certifications')] : [];
+  const experience = Number((cleanedText.match(/(\d+(?:\.\d+)?)\+?\s*(?:years|yrs|year)/i) || [0, 0])[1]) || inferExperienceFromText(cleanedText);
+  const education = findLabel('education') || (cleanedText.match(/(B\.?\s?Tech|M\.?\s?Tech|MBA|BSc|MSc|PhD|Bachelor|Master|Computer Science|Information Technology)[^\n]*/i) || ['Education extracted from uploaded resume'])[0];
+  const college = findLabel('college') || findLabel('university') || (cleanedText.match(/(?:IIT|NIT|IIIT|University|Institute|College|Karunya)[^\n]*/i) || [''])[0];
+  const projects = extractSectionItems(cleanedText, 'projects');
+  const certifications = extractSectionItems(cleanedText, 'certifications|certificates');
   return {
-    name,
+    name: name || 'Imported Candidate',
+    candidate_name: name || 'Imported Candidate',
     email,
     phone,
     linkedin,
     github,
-    role: findLabel('role') || findLabel('headline') || 'Uploaded Resume Candidate',
+    role: findLabel('role') || findLabel('headline') || inferRoleFromSkills(skills),
     experience,
     skills: skills.length ? skills : ['Python','SQL'],
     education,
+    college,
     projects,
-    certifications
+    certifications,
+    resumeText: cleanedText
   };
 }
 
