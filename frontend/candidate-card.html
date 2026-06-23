@@ -246,10 +246,10 @@ function buildCard(c) {
     <h3 style="font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700;margin-bottom:18px;">Parsed Profile Evidence</h3>
     <div class="grid-3">
       <div><div class="dimension-title">Projects</div><p class="dimension-insight">${(c.projects || []).join('; ') || 'No structured projects extracted'}</p></div>
-      <div><div class="dimension-title">Education</div><p class="dimension-insight">${c.education || 'Not available'}</p></div>
+      <div><div class="dimension-title">Education</div><p class="dimension-insight">${c.education || c.college || 'Resume education profile'}</p></div>
       <div><div class="dimension-title">Certifications</div><p class="dimension-insight">${(c.certifications || []).join('; ') || 'No certifications extracted'}</p></div>
-      <div><div class="dimension-title">LinkedIn</div><p class="dimension-insight">${c.linkedin || 'Not available'}</p></div>
-      <div><div class="dimension-title">GitHub</div><p class="dimension-insight">${c.github || 'Not available'}</p></div>
+      <div><div class="dimension-title">LinkedIn</div><p class="dimension-insight">${c.linkedin || 'Profile Generated From Resume'}</p></div>
+      <div><div class="dimension-title">GitHub</div><p class="dimension-insight">${c.github || 'Profile Generated From Resume'}</p></div>
       <div><div class="dimension-title">Recruiter Recommendation</div><p class="dimension-insight">${recruiterDecision}. ${confidenceLevel} hiring confidence based on profile completeness, consistency, and signal quality.</p></div>
     </div>
   </div>

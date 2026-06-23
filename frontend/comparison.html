@@ -23,6 +23,7 @@
 .cand-pick:hover { border-color: var(--border-glow); background: var(--bg-card-hover); }
 .cand-pick.selected-a { border-color: var(--purple); background: rgba(139,92,246,0.1); }
 .cand-pick.selected-b { border-color: var(--electric); background: rgba(6,182,212,0.1); }
+.cand-pick.disabled { opacity:.38; cursor:not-allowed; filter:saturate(.4); }
 
 /* ── COMPARE HEADER ── */
 .cmp-header {
@@ -109,9 +110,18 @@ initNetworkCanvas();
 
 const params = new URLSearchParams(location.search);
 let idA = parseInt(params.get('a')) || 1;
-let idB = parseInt(params.get('b')) || 2;
+let idB = params.has('b') ? parseInt(params.get('b')) : null;
 let radarChart = null;
 const compareCandidates = getRankedCandidatesForActiveSearch();
+let sameSelectionWarning = params.has('a') && params.has('b') && parseInt(params.get('a')) === parseInt(params.get('b'));
+
+function getNextCandidateId(excludeId) {
+  return (compareCandidates.find(candidate => Number(candidate.id) !== Number(excludeId)) || compareCandidates[0] || {}).id || null;
+}
+
+if (!idB) idB = getNextCandidateId(idA);
+if (!compareCandidates.some(candidate => Number(candidate.id) === Number(idA))) idA = compareCandidates[0]?.id || null;
+if (!idB || !compareCandidates.some(candidate => Number(candidate.id) === Number(idB))) idB = getNextCandidateId(idA);
 
 function buildSelectors() {
   const sa = document.getElementById('selectorA');
@@ -120,11 +130,19 @@ function buildSelectors() {
   compareCandidates.forEach(c => {
     ['A','B'].forEach(side => {
       const el = document.createElement('div');
-      el.className = `cand-pick${side==='A' && c.id===idA?' selected-a':side==='B' && c.id===idB?' selected-b':''}`;
+      const disabled = (side === 'A' && Number(c.id) === Number(idB)) || (side === 'B' && Number(c.id) === Number(idA));
+      el.className = `cand-pick${side==='A' && c.id===idA?' selected-a':side==='B' && c.id===idB?' selected-b':''}${disabled?' disabled':''}`;
       el.innerHTML = `<div class="avatar avatar-sm" style="background:${c.gradient};">${c.initials}</div><span>${c.name}</span>`;
       el.onclick = () => {
-        if (side==='A') idA=c.id;
-        else idB=c.id;
+        if (disabled) return;
+        if (side==='A') {
+          idA=c.id;
+          sameSelectionWarning = false;
+          if (!idB || Number(idB) === Number(idA)) idB = getNextCandidateId(idA);
+        } else {
+          idB=c.id;
+          sameSelectionWarning = false;
+        }
         buildSelectors(); renderComparison();
       };
       (side==='A'?sa:sb).appendChild(el);
@@ -136,6 +154,16 @@ function renderComparison() {
   const a = compareCandidates.find(x=>x.id===idA) || compareCandidates[0];
   const b = compareCandidates.find(x=>x.id===idB) || compareCandidates[1] || compareCandidates[0];
   if (!a||!b) return;
+  if (Number(a.id) === Number(b.id) || sameSelectionWarning) {
+    if (radarChart) { radarChart.destroy(); radarChart=null; }
+    document.getElementById('comparisonView').innerHTML = `
+      <div class="glass" style="padding:32px;text-align:center;border-color:rgba(245,158,11,.35);">
+        <div class="section-label" style="justify-content:center;">Comparison Validation</div>
+        <h2 style="font-family:'Space Grotesk',sans-serif;margin:10px 0 8px;">Please select two different candidates.</h2>
+        <p style="color:var(--text-secondary);">TalentLens comparisons require two unique candidate profiles.</p>
+      </div>`;
+    return;
+  }
 
   if (radarChart) { radarChart.destroy(); radarChart=null; }
 
@@ -168,7 +196,7 @@ function renderComparison() {
           <div class="cmp-name">${a.name}</div>
           <div class="cmp-role">${a.role}</div>
           <div class="cmp-role">${a.company} · ${a.experience} yrs</div>
-          <div class="cmp-role">${a.education || 'Education not extracted'}</div>
+          <div class="cmp-role">${a.education || a.college || 'Resume education profile'}</div>
           ${a.hiddenGem?'<div class="gem-badge">💎 Hidden Gem</div>':''}
           <div style="color:${getScoreColor(a.finalScore)};font-family:Space Grotesk;font-size:36px;font-weight:800;">${a.finalScore}</div>
           <div style="font-size:11px;color:var(--text-muted);">Final Score</div>
@@ -179,7 +207,7 @@ function renderComparison() {
           <div class="cmp-name">${b.name}</div>
           <div class="cmp-role">${b.role}</div>
           <div class="cmp-role">${b.company} · ${b.experience} yrs</div>
-          <div class="cmp-role">${b.education || 'Education not extracted'}</div>
+          <div class="cmp-role">${b.education || b.college || 'Resume education profile'}</div>
           ${b.hiddenGem?'<div class="gem-badge">💎 Hidden Gem</div>':''}
           <div style="color:${getScoreColor(b.finalScore)};font-family:Space Grotesk;font-size:36px;font-weight:800;">${b.finalScore}</div>
           <div style="font-size:11px;color:var(--text-muted);">Final Score</div>

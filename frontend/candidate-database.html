@@ -69,7 +69,8 @@
       <div class="admin-panel">
         <div class="section-label">Admin Delete System</div>
         <p style="color:var(--text-secondary);font-size:13px;margin-bottom:12px;">Enter admin password to delete uploaded candidates. Protected built-in candidates cannot be deleted.</p>
-        <input id="adminPassword" type="password" placeholder="Admin password" oninput="renderDatabase()"/>
+        <input id="adminPassword" type="password" placeholder="Admin password"/>
+        <button class="danger-btn" id="unlockAdminBtn" style="margin-left:8px;" onclick="validateAdminPassword()">Unlock</button>
         <button class="danger-btn" id="clearUploadsBtn" style="display:none;margin-left:8px;" onclick="clearUserAdded()">Clear Uploaded Candidates</button>
         <div id="adminStatus" style="color:var(--text-muted);font-size:12px;margin-top:10px;">Admin controls locked.</div>
       </div>
@@ -91,7 +92,7 @@ function renderDatabase() {
   const skillCounts = {};
   db.forEach(c => c.skills.forEach(skill => skillCounts[skill] = (skillCounts[skill] || 0) + 1));
   const sortedSkills = Object.entries(skillCounts).sort((a,b) => b[1] - a[1]).slice(0, 10);
-  const adminUnlocked = document.getElementById('adminPassword')?.value === 'talentlens-admin';
+  const adminUnlocked = window.talentlensAdminUnlocked === true;
   const expBuckets = {
     '0-2 years': db.filter(c => c.experience <= 2).length,
     '3-5 years': db.filter(c => c.experience >= 3 && c.experience <= 5).length,
@@ -143,7 +144,7 @@ function renderDatabase() {
         <div><div style="font-weight:700;">${c.name}</div><div style="font-size:12px;color:var(--text-muted);">${c.role}</div></div>
       </div>
       <div>${c.skills.slice(0,4).map(skill => `<span class="tag tag-skill">${skill}</span>`).join('')}</div>
-      <div style="color:var(--text-secondary);font-size:13px;line-height:1.5;">${c.education || 'Education not extracted'}<br/>${c.college || ''}</div>
+      <div style="color:var(--text-secondary);font-size:13px;line-height:1.5;">${c.education || c.college || 'Resume education profile'}<br/>${c.college || c.education || 'Profile Generated From Resume'}</div>
       <div style="font-family:'Space Grotesk';font-weight:800;">${c.experience || 0} yrs</div>
       <div>
         <span class="badge ${c.source === 'User Added' ? 'badge-electric' : 'badge-blue'}">${c.source}</span>
@@ -153,7 +154,9 @@ function renderDatabase() {
   `).join('');
 
   document.getElementById('clearUploadsBtn').style.display = adminUnlocked && userAdded.length ? 'inline-flex' : 'none';
-  document.getElementById('adminStatus').textContent = adminUnlocked ? 'Admin controls unlocked for uploaded candidates only.' : 'Admin controls locked.';
+  if (adminUnlocked && !document.getElementById('adminStatus').textContent.includes('Deleted')) {
+    document.getElementById('adminStatus').textContent = 'Admin controls unlocked for uploaded candidates only.';
+  }
   setTimeout(animateProgressBars, 150);
 }
 
@@ -164,11 +167,26 @@ function saveUserAdded(candidates) {
 function deleteUserCandidate(id) {
   const userAdded = JSON.parse(localStorage.getItem(TALENTLENS_DB_KEY) || '[]').filter(c => Number(c.id) !== Number(id));
   saveUserAdded(userAdded);
+  document.getElementById('adminStatus').textContent = 'Deleted uploaded candidate successfully.';
   renderDatabase();
 }
 
 function clearUserAdded() {
+  if (window.talentlensAdminUnlocked !== true) {
+    document.getElementById('adminStatus').textContent = 'Invalid password. Uploaded candidates were not deleted.';
+    return;
+  }
   saveUserAdded([]);
+  document.getElementById('adminStatus').textContent = 'Deleted all uploaded candidates successfully.';
+  renderDatabase();
+}
+
+function validateAdminPassword() {
+  const valid = document.getElementById('adminPassword').value === 'talentlens-admin';
+  window.talentlensAdminUnlocked = valid;
+  document.getElementById('adminStatus').textContent = valid
+    ? 'Admin controls unlocked. Uploaded candidates can now be deleted.'
+    : 'Invalid password. Uploaded candidates were not deleted.';
   renderDatabase();
 }
 
