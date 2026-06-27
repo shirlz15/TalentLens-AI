@@ -113,6 +113,7 @@ const hiringConfidence = getHiringConfidence(c);
 const hiddenGemScore = getHiddenGemScore(c);
 const recruiterDecision = getRecruiterDecision(c);
 const confidenceLevel = getConfidenceLevel(hiringConfidence);
+const careerTimeline = buildCareerEvidenceTimeline(c);
 
 document.getElementById('breadName').textContent = c.name;
 document.title = `${c.name} — TalentLens AI`;
@@ -125,7 +126,7 @@ function buildCard(c) {
       <div class="avatar avatar-xl" style="background:${c.gradient};">${c.initials}</div>
       <div class="hero-info">
         <div class="hero-name">${c.name} ${c.hiddenGem?'<span class="gem-badge" style="font-size:12px;vertical-align:middle;">💎 Hidden Gem</span>':''}</div>
-        <div class="hero-meta">${c.role} &middot; ${c.company} &middot; 📍 ${c.location}</div>
+        <div class="hero-meta">${c.role} &middot; ${(c.company || c.college || c.location || 'Profile Evidence')} &middot; 📍 ${c.location}</div>
         <div class="hero-tags">
           <span class="badge badge-purple">${c.experience} yrs exp</span>
           <span class="badge ${c.riskLevel==='Low'?'badge-green':'badge-amber'}">${c.riskLevel} Risk</span>
@@ -235,10 +236,16 @@ function buildCard(c) {
   <div class="glass animate-slide-up delay-3" style="padding:32px;margin-bottom:28px;">
     <h3 style="font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700;margin-bottom:24px;">📅 Career Timeline</h3>
     <div class="timeline">
-      <div class="tl-item"><div class="tl-dot"></div><div><div class="tl-role">${c.role}</div><div class="tl-company">${c.company}</div><div class="tl-dur">2023 – Present · ${Math.min(c.experience,2)} yrs</div></div></div>
-      <div class="tl-item"><div class="tl-dot"></div><div><div class="tl-role">Mid-Level Engineer</div><div class="tl-company">Previous Company</div><div class="tl-dur">2021 – 2023 · 2 yrs</div></div></div>
-      <div class="tl-item"><div class="tl-dot"></div><div><div class="tl-role">Junior Engineer</div><div class="tl-company">Startup / Early Role</div><div class="tl-dur">2019 – 2021 · 2 yrs</div></div></div>
-      <div class="tl-item"><div class="tl-dot"></div><div><div class="tl-role">${c.education.split('·')[1]?.trim() || 'Degree'}</div><div class="tl-company">${c.education.split('·')[0]?.trim()}</div><div class="tl-dur">Graduated</div></div></div>
+      ${careerTimeline.map(item => `
+        <div class="tl-item">
+          <div class="tl-dot"></div>
+          <div>
+            <div class="tl-role">${item.title}</div>
+            <div class="tl-company">${item.organization}</div>
+            <div class="tl-dur">${item.detail}</div>
+          </div>
+        </div>
+      `).join('')}
     </div>
   </div>
 
@@ -246,10 +253,10 @@ function buildCard(c) {
     <h3 style="font-family:'Space Grotesk',sans-serif;font-size:16px;font-weight:700;margin-bottom:18px;">Parsed Profile Evidence</h3>
     <div class="grid-3">
       <div><div class="dimension-title">Projects</div><p class="dimension-insight">${(c.projects || []).join('; ') || 'No structured projects extracted'}</p></div>
-      <div><div class="dimension-title">Education</div><p class="dimension-insight">${c.education || c.college || 'Resume education profile'}</p></div>
+      <div><div class="dimension-title">Education</div><p class="dimension-insight">${getCandidateEducationSummary(c) || 'Candidate Profile'}</p></div>
       <div><div class="dimension-title">Certifications</div><p class="dimension-insight">${(c.certifications || []).join('; ') || 'No certifications extracted'}</p></div>
-      <div><div class="dimension-title">LinkedIn</div><p class="dimension-insight">${c.linkedin || 'Profile Generated From Resume'}</p></div>
-      <div><div class="dimension-title">GitHub</div><p class="dimension-insight">${c.github || 'Profile Generated From Resume'}</p></div>
+      <div><div class="dimension-title">LinkedIn</div><p class="dimension-insight">${c.linkedin || ''}</p></div>
+      <div><div class="dimension-title">GitHub</div><p class="dimension-insight">${c.github || ''}</p></div>
       <div><div class="dimension-title">Recruiter Recommendation</div><p class="dimension-insight">${recruiterDecision}. ${confidenceLevel} hiring confidence based on profile completeness, consistency, and signal quality.</p></div>
     </div>
   </div>

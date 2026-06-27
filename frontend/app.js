@@ -221,13 +221,194 @@ function buildNav(activePage) {
 // Built-in TalentLens database workflow
 const TALENTLENS_DB_KEY = 'talentlens_user_candidates_v1';
 const TALENTLENS_SEARCH_KEY = 'talentlens_active_search_v1';
+const LOW_CONFIDENCE_LABEL = 'Candidate Profile';
 
 function getCandidateDatabase() {
   const userAdded = JSON.parse(localStorage.getItem(TALENTLENS_DB_KEY) || '[]');
   return [
-    ...CANDIDATES.map(c => ({ ...c, source: c.source || 'Built-In' })),
-    ...userAdded.map(c => ({ ...c, source: 'User Added' }))
+    ...CANDIDATES.map(c => normalizeStoredCandidate(c, 'Built-In')),
+    ...userAdded.map(c => normalizeStoredCandidate(c, 'User Added'))
   ];
+}
+
+function normalizeStoredCandidate(candidate, source) {
+  const resumeText = candidate.resumeText || '';
+  const parsed = resumeText ? extractCandidateProfileFromText(resumeText) : null;
+  const name = resolveCandidateName(candidate, parsed);
+  const skills = normalizeSkillList(candidate.skills || parsed?.skills || []);
+  const projects = normalizeTextList(candidate.projects || parsed?.projects || []);
+  const certifications = normalizeTextList(candidate.certifications || parsed?.certifications || []);
+  const degree = candidate.degree || parsed?.degree || inferDegreeFromEducation(candidate.education || parsed?.education || '');
+  const college = candidate.college || parsed?.college || '';
+  const education = formatEducation(degree, college, candidate.education || parsed?.education || '');
+  const email = candidate.email || parsed?.email || '';
+  const phone = candidate.phone || parsed?.phone || '';
+  const linkedin = candidate.linkedin || parsed?.linkedin || '';
+  const github = candidate.github || parsed?.github || '';
+  const experience = normalizeExperience(candidate.experience ?? parsed?.experience, resumeText, projects);
+  const parsingConfidence = getParsingConfidence({
+    name,
+    skills,
+    projects,
+    certifications,
+    degree,
+    college,
+    education,
+    email,
+    phone,
+    linkedin,
+    github,
+    experience,
+    resumeText
+  });
+  const displayName = parsingConfidence < 45 ? LOW_CONFIDENCE_LABEL : name;
+  const initials = candidate.initials || initialsFromName(name);
+  const role = candidate.role || (parsed?.role || inferRoleFromResume(resumeText, skills));
+  return {
+    ...candidate,
+    source: candidate.source || source,
+    name: displayName,
+    displayName,
+    extractedName: name,
+    initials,
+    role,
+    degree,
+    college,
+    education,
+    email,
+    phone,
+    linkedin,
+    github,
+    experience,
+    skills,
+    projects,
+    certifications,
+    parsingConfidence,
+    profileLabel: displayName
+  };
+}
+
+function resolveCandidateName(candidate, parsed) {
+  const raw = [
+    candidate.name,
+    candidate.candidate_name,
+    parsed?.name,
+    parsed?.candidate_name,
+  ].find(value => isMeaningfulDisplayName(value));
+  return raw ? cleanName(raw) : LOW_CONFIDENCE_LABEL;
+}
+
+function isMeaningfulDisplayName(value) {
+  const clean = cleanName(value);
+  if (!clean) return false;
+  if (clean.length > 60) return false;
+  return !/^(imported candidate|data candidate|uploaded candidate|resume profile|resume-based talent profile|candidate profile|not specified)$/i.test(clean);
+}
+
+function normalizeSkillList(skills) {
+  return Array.from(new Set((Array.isArray(skills) ? skills : String(skills || '').split(/[,;/|]/)).map(skill => String(skill || '').trim()).filter(Boolean)));
+}
+
+function normalizeTextList(values) {
+  if (Array.isArray(values)) return values.map(value => String(value || '').trim()).filter(Boolean);
+  if (!values) return [];
+  return String(values).split(/\n|[,;/|]/).map(value => value.trim()).filter(Boolean);
+}
+
+function formatEducation(degree, college, fallback) {
+  const pieces = [degree, college].map(value => String(value || '').trim()).filter(Boolean);
+  if (pieces.length) return pieces.join(' · ');
+  const fallbackText = String(fallback || '').trim();
+  return fallbackText && !/not specified|uploaded/i.test(fallbackText) ? fallbackText : '';
+}
+
+function inferDegreeFromEducation(value) {
+  const text = String(value || '');
+  const match = text.match(/\b(B\.?\s?Tech|B\.?\s?E\.?|BSc|B\.?\s?Sc|M\.?\s?Tech|M\.?\s?E\.?|MSc|M\.?\s?Sc|MBA|BCA|MCA|PhD|MS|BS|BE|ME)\b[^\n,;]*/i);
+  return match ? cleanRole(match[0]) : '';
+}
+
+function normalizeExperience(value, resumeText, projects) {
+  const direct = Number(value);
+  if (Number.isFinite(direct) && direct > 0) return direct;
+  return inferExperienceFromText(resumeText || '', projects || []);
+}
+
+function getParsingConfidence(candidate) {
+  let score = 0;
+  if (isMeaningfulDisplayName(candidate.name)) score += 20;
+  if (candidate.email) score += 10;
+  if (candidate.phone) score += 8;
+  if (candidate.linkedin) score += 8;
+  if (candidate.github) score += 8;
+  if (candidate.degree) score += 12;
+  if (candidate.college) score += 10;
+  if ((candidate.skills || []).length) score += Math.min(22, (candidate.skills.length / 8) * 22);
+  if ((candidate.projects || []).length) score += Math.min(10, candidate.projects.length * 3);
+  if (Number(candidate.experience || 0) > 0) score += 10;
+  if ((candidate.resumeText || '').length > 500) score += 4;
+  return Math.max(0, Math.min(100, Math.round(score)));
+}
+
+function initialsFromName(name) {
+  const parts = String(name || '').split(/\s+/).filter(Boolean);
+  if (!parts.length) return 'CP';
+  return parts.slice(0, 2).map(part => part[0]).join('').toUpperCase();
+}
+
+function getCandidateEducationSummary(candidate) {
+  const degree = String(candidate.degree || '').trim();
+  const college = String(candidate.college || '').trim();
+  if (degree && college) return `${degree} · ${college}`;
+  if (degree) return degree;
+  if (college) return college;
+  const education = String(candidate.education || '').trim();
+  if (education && !/resume education profile|not specified|uploaded/i.test(education)) return education;
+  return candidate.parsingConfidence < 45 ? LOW_CONFIDENCE_LABEL : '';
+}
+
+function buildCareerEvidenceTimeline(candidate) {
+  const items = [];
+  const experience = Number(candidate.experience || 0);
+  const role = String(candidate.role || '').trim() || LOW_CONFIDENCE_LABEL;
+  const organization = String(candidate.company || candidate.college || candidate.location || '').trim() || 'Profile Evidence';
+  items.push({
+    title: role,
+    organization,
+    detail: experience > 0 ? `${experience} years estimated experience` : 'Experience inferred from resume evidence'
+  });
+
+  (candidate.projects || []).slice(0, 2).forEach(project => {
+    items.push({
+      title: 'Project Evidence',
+      organization: String(project || '').trim(),
+      detail: 'Hands-on project extracted from resume'
+    });
+  });
+
+  if ((candidate.certifications || []).length) {
+    items.push({
+      title: 'Certification',
+      organization: String(candidate.certifications[0] || '').trim(),
+      detail: 'Certification extracted from profile'
+    });
+  }
+
+  const educationSummary = getCandidateEducationSummary(candidate);
+  if (educationSummary) {
+    const parts = educationSummary.split(/Â·|·|Ã‚Â·/).map(part => part.trim()).filter(Boolean);
+    items.push({
+      title: parts[0] || 'Education',
+      organization: parts[1] || parts[0] || 'Education Evidence',
+      detail: 'Education evidence extracted from profile'
+    });
+  }
+
+  return items.slice(0, 4);
+}
+
+function getCandidateSourceSummary(candidate) {
+  return candidate.source || 'Built-In';
 }
 
 function saveTalentSearch(search) {
@@ -279,32 +460,38 @@ function getRankedCandidatesForActiveSearch() {
 }
 
 function addCandidateToDatabase(candidate) {
+  const normalizedCandidate = normalizeStoredCandidate({
+    ...candidate,
+    source: 'User Added'
+  }, 'User Added');
   const existing = JSON.parse(localStorage.getItem(TALENTLENS_DB_KEY) || '[]');
   const duplicate = getCandidateDatabase().find(item => {
-    const sameName = item.name && candidate.name && getNameSimilarity(item.name, candidate.name) >= 0.86;
-    const sameEmail = item.email && candidate.email && item.email.trim().toLowerCase() === candidate.email.trim().toLowerCase();
-    const samePhone = item.phone && candidate.phone && item.phone.replace(/\D/g, '') === candidate.phone.replace(/\D/g, '');
-    const sameLinkedin = item.linkedin && candidate.linkedin && normalizeUrl(item.linkedin) === normalizeUrl(candidate.linkedin);
-    const sameGithub = item.github && candidate.github && normalizeUrl(item.github) === normalizeUrl(candidate.github);
+    const sameName = item.name && normalizedCandidate.name && getNameSimilarity(item.extractedName || item.name, normalizedCandidate.extractedName || normalizedCandidate.name) >= 0.86;
+    const sameEmail = item.email && normalizedCandidate.email && item.email.trim().toLowerCase() === normalizedCandidate.email.trim().toLowerCase();
+    const samePhone = item.phone && normalizedCandidate.phone && item.phone.replace(/\D/g, '') === normalizedCandidate.phone.replace(/\D/g, '');
+    const sameLinkedin = item.linkedin && normalizedCandidate.linkedin && normalizeUrl(item.linkedin) === normalizeUrl(normalizedCandidate.linkedin);
+    const sameGithub = item.github && normalizedCandidate.github && normalizeUrl(item.github) === normalizeUrl(normalizedCandidate.github);
     return sameName || sameEmail || samePhone || sameLinkedin || sameGithub;
   });
   if (duplicate) return { added: false, candidate: duplicate };
   const nextId = Math.max(100, ...getCandidateDatabase().map(c => Number(c.id) || 0)) + 1;
-  const resumeText = candidate.resumeText || '';
-  const generated = generateCandidateIntelligence(candidate);
+  const resumeText = normalizedCandidate.resumeText || '';
+  const generated = generateCandidateIntelligence(normalizedCandidate);
   existing.push({
     id: nextId,
-    initials: candidate.initials || candidate.name.split(/\s+/).map(part => part[0]).join('').slice(0, 2).toUpperCase(),
-    name: candidate.name,
-    candidate_name: candidate.name,
-    email: candidate.email || '',
-    phone: candidate.phone || '',
-    linkedin: candidate.linkedin || '',
-    github: candidate.github || '',
-    role: candidate.role || inferRoleFromSkills(candidate.skills || []),
-    company: candidate.company || candidate.college || 'Resume Profile',
+    initials: normalizedCandidate.initials || initialsFromName(normalizedCandidate.name),
+    name: normalizedCandidate.name,
+    displayName: normalizedCandidate.displayName,
+    extractedName: normalizedCandidate.extractedName,
+    candidate_name: normalizedCandidate.extractedName || normalizedCandidate.name,
+    email: normalizedCandidate.email || '',
+    phone: normalizedCandidate.phone || '',
+    linkedin: normalizedCandidate.linkedin || '',
+    github: normalizedCandidate.github || '',
+    role: normalizedCandidate.role || inferRoleFromSkills(normalizedCandidate.skills || []),
+    company: normalizedCandidate.company || normalizedCandidate.college || normalizedCandidate.degree || normalizedCandidate.role || 'Profile Evidence',
     location: candidate.location || 'India',
-    experience: Number(candidate.experience || 0),
+    experience: Number(normalizedCandidate.experience || 0),
     finalScore: Number(candidate.finalScore || generated.finalScore),
     technicalScore: Number(candidate.technicalScore || generated.technicalScore),
     experienceScore: Number(candidate.experienceScore || generated.experienceScore),
@@ -313,7 +500,7 @@ function addCandidateToDatabase(candidate) {
     cognitiveTwinScore: Number(candidate.cognitiveTwinScore || generated.cognitiveTwinScore),
     hiddenGem: Boolean(candidate.hiddenGem || generated.hiddenGem),
     riskLevel: candidate.riskLevel || generated.riskLevel,
-    skills: candidate.skills || ['Python','SQL'],
+    skills: normalizedCandidate.skills.length ? normalizedCandidate.skills : ['Python','SQL'],
     strengths: candidate.strengths || generated.strengths,
     weaknesses: candidate.weaknesses || generated.weaknesses,
     whyRanked: candidate.whyRanked || generated.whyRanked,
@@ -323,10 +510,11 @@ function addCandidateToDatabase(candidate) {
     growthPotential: Number(candidate.growthPotential || generated.growthPotential),
     learningVelocity: Number(candidate.learningVelocity || generated.learningVelocity),
     technicalDepth: Number(candidate.technicalDepth || generated.technicalDepth),
-    education: candidate.education || candidate.college || 'Resume education profile',
-    college: candidate.college || '',
-    projects: candidate.projects || [],
-    certifications: candidate.certifications || [],
+    education: normalizedCandidate.education || normalizedCandidate.degree || normalizedCandidate.college || LOW_CONFIDENCE_LABEL,
+    degree: normalizedCandidate.degree || '',
+    college: normalizedCandidate.college || '',
+    projects: normalizedCandidate.projects || [],
+    certifications: normalizedCandidate.certifications || [],
     resumeText,
     gradient: candidate.gradient || 'linear-gradient(135deg,#06b6d4,#8b5cf6)',
     source: 'User Added',
@@ -490,7 +678,7 @@ function cleanName(value) {
   return String(value || '').replace(/[^A-Za-z .'-]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
-function inferExperienceFromText(text) {
+function inferExperienceFromText(text, projects = []) {
   const normalized = String(text || '').replace(/[–—]/g, '-');
   const monthMap = { jan:0, feb:1, mar:2, apr:3, may:4, jun:5, jul:6, aug:7, sep:8, oct:9, nov:10, dec:11 };
   const currentYear = new Date().getFullYear();
@@ -506,12 +694,13 @@ function inferExperienceFromText(text) {
   if (months > 0) return Math.max(1, Math.min(15, Math.round(months / 12)));
   const internshipCount = (normalized.match(/\b(intern|internship|trainee|apprentice)\b/gi) || []).length;
   const workSignals = (normalized.match(/\b(experience|worked|developed|built|engineer|developer|analyst|project|freelance|company|startup)\b/gi) || []).length;
+  const projectSignals = (String(projects.join(' ')).match(/\b(built|developed|designed|deployed|launched|implemented|led|created)\b/gi) || []).length;
   const dateMatches = [...normalized.matchAll(/\b(20\d{2}|19\d{2})\b/g)].map(match => Number(match[1]));
   if (dateMatches.length >= 2) {
     return Math.max(1, Math.min(12, Math.max(...dateMatches) - Math.min(...dateMatches)));
   }
-  if (internshipCount >= 2 || workSignals >= 8) return 2;
-  if (internshipCount || workSignals >= 3) return 1;
+  if (internshipCount >= 2 || workSignals >= 8 || projectSignals >= 3) return 2;
+  if (internshipCount || workSignals >= 3 || projectSignals >= 1) return 1;
   return 1;
 }
 
@@ -553,10 +742,10 @@ function extractSectionItems(text, labels) {
 }
 
 function generateCandidateIntelligence(candidate) {
-  const skills = candidate.skills || [];
+  const skills = normalizeSkillList(candidate.skills || []);
   const hasContact = Boolean(candidate.email || candidate.phone || candidate.linkedin || candidate.github);
   const hasProjects = (candidate.projects || []).length > 0;
-  const hasEducation = Boolean(candidate.education && !/uploaded/i.test(candidate.education));
+  const hasEducation = Boolean((candidate.degree || candidate.college || candidate.education) && !/uploaded/i.test(String(candidate.education || '')));
   const experience = Number(candidate.experience || 0);
   const technicalScore = Math.min(96, 50 + skills.length * 6 + (hasProjects ? 8 : 0));
   const experienceScore = Math.min(100, 48 + experience * 8 + (hasEducation ? 8 : 0));
@@ -570,8 +759,8 @@ function generateCandidateIntelligence(candidate) {
   const hiddenGem = growthPotential >= 84 && experience <= 4;
   const riskLevel = authenticityScore >= 78 ? 'Low' : authenticityScore >= 62 ? 'Medium' : 'High';
   const strengths = [
-    skills.length ? `Extracted ${skills.length} resume skills: ${skills.slice(0, 5).join(', ')}` : 'Resume Parsed Successfully',
-    hasEducation ? `Education evidence found: ${candidate.education}` : '',
+    skills.length ? `Extracted ${skills.length} resume skills: ${skills.slice(0, 5).join(', ')}` : 'Resume parsed from content',
+    hasEducation ? `Education evidence found: ${candidate.education || [candidate.degree, candidate.college].filter(Boolean).join(' · ')}` : '',
     hasProjects ? 'Project evidence supports hands-on capability' : '',
     candidate.github ? 'GitHub signal available for technical validation' : ''
   ].filter(Boolean);
@@ -579,7 +768,7 @@ function generateCandidateIntelligence(candidate) {
     !hasContact ? 'Add contact/profile links before final outreach' : '',
     !hasProjects ? 'Project details are light in the parsed resume' : '',
     !candidate.linkedin ? 'LinkedIn link was not present in resume content' : '',
-    experience === 0 ? 'Experience timeline is light and estimated conservatively' : ''
+    experience <= 0 ? 'Experience timeline is light and estimated conservatively' : ''
   ].filter(Boolean);
   return {
     finalScore,
@@ -594,11 +783,11 @@ function generateCandidateIntelligence(candidate) {
     technicalDepth: technicalScore,
     hiddenGem,
     riskLevel,
-    strengths: strengths.length ? strengths : ['Resume Parsed Successfully'],
+    strengths: strengths.length ? strengths : ['Resume parsed from content'],
     weaknesses: weaknesses.length ? weaknesses : ['No major extraction gaps detected'],
-    authenticityRisk: `Resume Parsed Successfully. ${riskLevel} authenticity risk based on extracted contact, education, profile links, and resume evidence density.`,
+    authenticityRisk: `${riskLevel} authenticity risk based on extracted contact, education, profile links, and resume evidence density.`,
     recruiterReasoning: `${candidate.name} has ${skills.slice(0, 4).join(', ') || 'resume-based'} signals with ${experience} year${experience === 1 ? '' : 's'} of estimated experience and ${riskLevel.toLowerCase()} authenticity risk.`,
-    whyRanked: `Profile Generated From Resume: ${candidate.name}, ${candidate.education || candidate.college || 'education profile available'}, ${skills.slice(0, 6).join(', ') || 'resume skills parsed'}.`,
+    whyRanked: `Profile generated from resume content: ${candidate.name}, ${candidate.education || [candidate.degree, candidate.college].filter(Boolean).join(' · ') || 'education evidence available'}, ${skills.slice(0, 6).join(', ') || 'resume skills parsed'}.`,
   };
 }
 
@@ -612,7 +801,7 @@ async function importCandidateFile(file, onDone) {
       const parsed = JSON.parse(text);
       const profile = parsed.profile || parsed;
       candidate = {
-        name: profile.name || profile.full_name || parsed.candidate_name || parsed.name || 'Resume Profile',
+        name: profile.name || profile.full_name || parsed.candidate_name || parsed.name || LOW_CONFIDENCE_LABEL,
         role: profile.headline || profile.role || inferRoleFromSkills(parsed.skills || profile.skills || []),
         email: profile.email || parsed.email || '',
         phone: profile.phone || parsed.phone || '',
@@ -620,7 +809,9 @@ async function importCandidateFile(file, onDone) {
         github: profile.github_url || parsed.github || '',
         experience: profile.years_experience || parsed.years_experience || 0,
         skills: parsed.skills || profile.skills || ['Python','SQL'],
-        education: Array.isArray(parsed.education) ? parsed.education.map(e => e.degree || e.school || JSON.stringify(e)).join(', ') : (parsed.education || profile.education || profile.college || 'Resume education profile'),
+        degree: profile.degree || parsed.degree || '',
+        college: profile.college || parsed.college || '',
+        education: Array.isArray(parsed.education) ? parsed.education.map(e => e.degree || e.school || JSON.stringify(e)).join(', ') : (parsed.education || profile.education || profile.college || ''),
         college: profile.college || parsed.college || '',
         projects: parsed.projects || [],
         certifications: parsed.certifications || [],
@@ -653,14 +844,16 @@ function extractCandidateProfileFromText(text) {
   const skillsText = findLabel('skills') || cleanedText;
   const knownSkills = ['Python','SQL','Machine Learning','Deep Learning','PyTorch','TensorFlow','LLMs','RAG','LangChain','Vector DBs','MLOps','Kubernetes','Spark','Airflow','React','FastAPI','Docker','NLP','Tableau','Power BI','Git','AWS','GCP','Java','JavaScript','TypeScript','Node.js','Excel','Statistics','Pandas','NumPy','Scikit-learn','HTML','CSS','MongoDB','MySQL','PostgreSQL'];
   const skills = knownSkills.filter(skill => skillsText.toLowerCase().includes(skill.toLowerCase()) || (skill === 'LLMs' && skillsText.toLowerCase().includes('llm')));
-  const experience = Number((cleanedText.match(/(\d+(?:\.\d+)?)\+?\s*(?:years|yrs|year)/i) || [0, 0])[1]) || inferExperienceFromText(cleanedText);
-  const education = findLabel('education') || (cleanedText.match(/(B\.?\s?Tech|M\.?\s?Tech|MBA|BSc|MSc|PhD|Bachelor|Master|Computer Science|Information Technology)[^\n]*/i) || ['Education extracted from uploaded resume'])[0];
-  const college = findLabel('college') || findLabel('university') || (cleanedText.match(/(?:IIT|NIT|IIIT|University|Institute|College|Karunya)[^\n]*/i) || [''])[0];
   const projects = extractSectionItems(cleanedText, 'projects');
+  const experience = Number((cleanedText.match(/(\d+(?:\.\d+)?)\+?\s*(?:years|yrs|year)/i) || [0, 0])[1]) || inferExperienceFromText(cleanedText, projects);
+  const degree = findLabel('degree') || findLabel('education') || inferDegreeFromEducation(cleanedText);
+  const college = findLabel('college') || findLabel('university') || inferCollegeFromText(cleanedText);
+  const education = formatEducation(degree, college, findLabel('education'));
   const certifications = extractSectionItems(cleanedText, 'certifications|certificates');
   return {
     name: name || buildNameFromResumeIdentity(email, linkedin, github, lines),
     candidate_name: name || buildNameFromResumeIdentity(email, linkedin, github, lines),
+    degree,
     email,
     phone,
     linkedin,
@@ -668,7 +861,7 @@ function extractCandidateProfileFromText(text) {
     role: findLabel('role') || findLabel('headline') || inferRoleFromResume(cleanedText, skills),
     experience,
     skills: skills.length ? skills : ['Python','SQL'],
-    education,
+    education: education || LOW_CONFIDENCE_LABEL,
     college,
     projects,
     certifications,
@@ -686,7 +879,15 @@ function buildNameFromResumeIdentity(email, linkedin, github, lines) {
     if (clean) return toTitleCase(clean);
   }
   const line = lines.find(item => cleanName(item).split(/\s+/).length >= 2 && !/(resume|education|skills|project|experience|certification|email|phone|linkedin|github)/i.test(item));
-  return line ? toTitleCase(cleanName(line)) : 'Resume Parsed Successfully';
+  return line ? toTitleCase(cleanName(line)) : LOW_CONFIDENCE_LABEL;
+}
+
+function inferCollegeFromText(text) {
+  const lines = String(text || '').split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+  const labelled = lines.find(line => /(university|college|institute|school|iit|nit|iiit|bits|karunya)/i.test(line));
+  if (labelled) return cleanRole(labelled);
+  const match = String(text || '').match(/(?:at|from|of)\s+([A-Z][A-Za-z&.,'() -]{2,80}(?:University|College|Institute|School|Campus)?)/);
+  return match ? cleanRole(match[1]) : '';
 }
 
 function toTitleCase(value) {

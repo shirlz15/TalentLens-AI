@@ -10,6 +10,10 @@ An AI-powered candidate discovery and ranking system that combines:
 - Honeypot Detection
 - Explainable Candidate Ranking
 
+## Tech Stack
+
+Python, FastAPI, Sentence Transformers, FAISS, LLMs, RAG, Pandas, NumPy, HTML, CSS, JavaScript.
+
 Built for the India Runs Data & AI Challenge.
 
 ## Innovation: Recruiter Cognitive Twin & Hidden Gem Detection
@@ -28,15 +32,51 @@ These fields are included in candidate intelligence cards, score breakdowns, and
 - `hidden_gem_flag`
 - `hidden_gem_reason`
 
+## Architecture
+
+JD Understanding
+
+↓
+
+Semantic Embedding
+
+↓
+
+FAISS Candidate Retrieval
+
+↓
+
+Hybrid Scoring Engine
+
+↓
+
+Recruiter Cognitive Twin
+
+↓
+
+Hidden Gem Detection
+
+↓
+
+Optional LLM Reasoning
+
+↓
+
+Ranked CSV + Dashboard
+
+TalentLens works offline using deterministic reasoning and fallback semantic retrieval. If an `OPENAI_API_KEY` or `GEMINI_API_KEY` is provided, recruiter reasoning, hidden-gem explanation, and interview recommendation can be upgraded with LLM-backed explanations.
+
 ## Workflow: Built-In Candidate Database
 
-TalentLens now works as a database-first AI recruiter platform. Recruiters can enter a job title, choose a role family, paste a job description, and rank candidates from the stored TalentLens database without uploading any files.
+TalentLens now works as a database-first AI recruiter platform. Recruiters can enter a job title, choose a role family, paste a job description, and rank candidates from the stored TalentLens database immediately.
 
-Optional candidate upload is still supported for Resume PDF, Resume DOCX, and Candidate JSON. Uploaded candidates are parsed into a basic profile, stored locally in the demo database, marked `User Added`, and included in future rankings.
+Resume upload is supported only on the Analyze Role page for Resume PDF, Resume DOCX, and Candidate JSON. Uploaded candidates are parsed into structured profiles, stored locally, marked `User Added`, and included in future rankings.
 
 Frontend workflow:
 
 - Home: search role, paste JD, analyze candidates
-- Analyze Role: database-first job search with optional upload
+- Analyze Role: database-first job search with optional resume upload
 - Rankings: ranks candidates from the stored database by default
-- Candidate Database: shows total candidates, user-added candidates, skill distribution, and candidate list
+- Candidate Database: view-only database with parsed profile details, scores, recruiter confidence, hidden-gem status, authenticity risk, and source
+- Hidden Gems: surfaces overlooked high-potential talent with hidden-gem reasoning and recruiter recommendation
+- AI Insights: analytics over score quality, experience, skill clusters, universities, confidence, risk, authenticity, and hidden-gem distribution

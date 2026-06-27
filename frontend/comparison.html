@@ -61,6 +61,8 @@
 .skill-a { color: var(--purple); }
 .skill-b { color: var(--electric); }
 .skill-shared { color: var(--green); }
+.intel-list { display:flex; flex-direction:column; gap:10px; }
+.intel-pill { padding:12px 14px; border:1px solid var(--border); border-radius:12px; background:rgba(255,255,255,0.03); color:var(--text-secondary); font-size:13px; line-height:1.55; }
 
 /* ── RADAR ── */
 .radar-wrap { display: flex; justify-content: center; align-items: center; height: 340px; }
@@ -170,6 +172,12 @@ function renderComparison() {
   const sharedSkills = a.skills.filter(s=>b.skills.includes(s));
   const onlyA = a.skills.filter(s=>!b.skills.includes(s));
   const onlyB = b.skills.filter(s=>!a.skills.includes(s));
+  const hiringConfidenceA = getHiringConfidence(a);
+  const hiringConfidenceB = getHiringConfidence(b);
+  const hiddenGemScoreA = getHiddenGemScore(a);
+  const hiddenGemScoreB = getHiddenGemScore(b);
+  const recommendationA = `${getRecruiterDecision(a)} (${getConfidenceLevel(hiringConfidenceA)} confidence)`;
+  const recommendationB = `${getRecruiterDecision(b)} (${getConfidenceLevel(hiringConfidenceB)} confidence)`;
 
   const dims = [
     ['Final Score', a.finalScore, b.finalScore],
@@ -180,6 +188,8 @@ function renderComparison() {
     ['Cognitive Twin', a.cognitiveTwinScore, b.cognitiveTwinScore],
     ['Career Consistency', a.careerConsistency, b.careerConsistency],
     ['Growth Potential', a.growthPotential, b.growthPotential],
+    ['Recruiter Score', hiringConfidenceA, hiringConfidenceB],
+    ['Hidden Gem Score', hiddenGemScoreA, hiddenGemScoreB],
   ];
 
   function winnerStyle(va,vb,side) {
@@ -195,8 +205,8 @@ function renderComparison() {
           <div class="avatar avatar-lg" style="background:${a.gradient};">${a.initials}</div>
           <div class="cmp-name">${a.name}</div>
           <div class="cmp-role">${a.role}</div>
-          <div class="cmp-role">${a.company} · ${a.experience} yrs</div>
-          <div class="cmp-role">${a.education || a.college || 'Resume education profile'}</div>
+          <div class="cmp-role">${a.company || a.college || a.location || 'Profile Evidence'} · ${a.experience} yrs</div>
+          <div class="cmp-role">${getCandidateEducationSummary(a) || 'Candidate Profile'}</div>
           ${a.hiddenGem?'<div class="gem-badge">💎 Hidden Gem</div>':''}
           <div style="color:${getScoreColor(a.finalScore)};font-family:Space Grotesk;font-size:36px;font-weight:800;">${a.finalScore}</div>
           <div style="font-size:11px;color:var(--text-muted);">Final Score</div>
@@ -206,11 +216,36 @@ function renderComparison() {
           <div class="avatar avatar-lg" style="background:${b.gradient};">${b.initials}</div>
           <div class="cmp-name">${b.name}</div>
           <div class="cmp-role">${b.role}</div>
-          <div class="cmp-role">${b.company} · ${b.experience} yrs</div>
-          <div class="cmp-role">${b.education || b.college || 'Resume education profile'}</div>
+          <div class="cmp-role">${b.company || b.college || b.location || 'Profile Evidence'} · ${b.experience} yrs</div>
+          <div class="cmp-role">${getCandidateEducationSummary(b) || 'Candidate Profile'}</div>
           ${b.hiddenGem?'<div class="gem-badge">💎 Hidden Gem</div>':''}
           <div style="color:${getScoreColor(b.finalScore)};font-family:Space Grotesk;font-size:36px;font-weight:800;">${b.finalScore}</div>
           <div style="font-size:11px;color:var(--text-muted);">Final Score</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="glass" style="padding:24px;margin-bottom:24px;">
+      <div class="cmp-table">
+        <div class="cmp-row">
+          <div class="cmp-val-a" style="text-align:right;color:var(--text-secondary);">${getCandidateEducationSummary(a) || 'Candidate Profile'}</div>
+          <div class="cmp-label">Education</div>
+          <div class="cmp-val-b" style="text-align:left;color:var(--text-secondary);">${getCandidateEducationSummary(b) || 'Candidate Profile'}</div>
+        </div>
+        <div class="cmp-row">
+          <div class="cmp-val-a" style="text-align:right;color:var(--text-secondary);">${a.experience || 0} years</div>
+          <div class="cmp-label">Experience</div>
+          <div class="cmp-val-b" style="text-align:left;color:var(--text-secondary);">${b.experience || 0} years</div>
+        </div>
+        <div class="cmp-row">
+          <div class="cmp-val-a" style="text-align:right;color:var(--text-secondary);">${a.careerConsistency}</div>
+          <div class="cmp-label">Career Consistency</div>
+          <div class="cmp-val-b" style="text-align:left;color:var(--text-secondary);">${b.careerConsistency}</div>
+        </div>
+        <div class="cmp-row">
+          <div class="cmp-val-a" style="text-align:right;color:var(--text-secondary);">${recommendationA}</div>
+          <div class="cmp-label">Recommendation</div>
+          <div class="cmp-val-b" style="text-align:left;color:var(--text-secondary);">${recommendationB}</div>
         </div>
       </div>
     </div>
@@ -275,6 +310,21 @@ function renderComparison() {
           <div class="ib-label">${b.riskLevel} Risk</div>
           <p class="ib-text">${b.authenticityRisk}</p>
         </div>
+      </div>
+    </div>
+
+    <div class="grid-2" style="margin-bottom:24px;align-items:start;">
+      <div class="glass" style="padding:24px;">
+        <h3 style="font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700;margin-bottom:12px;">${a.name.split(' ')[0]} strengths</h3>
+        <div class="intel-list">${(a.strengths || []).map(item => `<div class="intel-pill">${item}</div>`).join('') || '<div class="intel-pill">No structured strengths available.</div>'}</div>
+        <h3 style="font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700;margin:20px 0 12px;">${a.name.split(' ')[0]} weaknesses</h3>
+        <div class="intel-list">${(a.weaknesses || []).map(item => `<div class="intel-pill">${item}</div>`).join('') || '<div class="intel-pill">No structured weaknesses available.</div>'}</div>
+      </div>
+      <div class="glass" style="padding:24px;">
+        <h3 style="font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700;margin-bottom:12px;">${b.name.split(' ')[0]} strengths</h3>
+        <div class="intel-list">${(b.strengths || []).map(item => `<div class="intel-pill">${item}</div>`).join('') || '<div class="intel-pill">No structured strengths available.</div>'}</div>
+        <h3 style="font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700;margin:20px 0 12px;">${b.name.split(' ')[0]} weaknesses</h3>
+        <div class="intel-list">${(b.weaknesses || []).map(item => `<div class="intel-pill">${item}</div>`).join('') || '<div class="intel-pill">No structured weaknesses available.</div>'}</div>
       </div>
     </div>`;
 

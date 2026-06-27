@@ -183,13 +183,11 @@
           <textarea id="homeJd" placeholder="Paste job description">Senior AI/ML Engineer with Python, machine learning, deep learning, MLOps, LLM and RAG experience.</textarea>
           <button class="btn btn-primary btn-lg" onclick="startHomeSearch()">Analyze Candidates</button>
         </div>
-        <div class="home-upload" ondragover="event.preventDefault()" ondrop="handleHomeDrop(event)">
-          <div class="home-upload-title">Optional candidate upload</div>
-          <div class="home-upload-copy">Drop a resume PDF, DOCX, or candidate JSON to add a new ATS profile. Rankings already work from the built-in candidate database.</div>
-          <input id="homeCandidateUpload" type="file" accept=".pdf,.docx,.json" style="display:none" onchange="handleHomeUpload(event)"/>
-          <button class="btn btn-secondary" onclick="document.getElementById('homeCandidateUpload').click()">Upload New Candidate</button>
+        <div class="home-upload">
+          <div class="home-upload-title">View candidate intelligence</div>
+          <div class="home-upload-copy">Use Analyze Candidates to rank the database. Uploaded resumes are handled from the Analyze Role page only.</div>
+          <a href="jd-analysis.html" class="btn btn-secondary">Go to Analyze Role</a>
           <a href="candidate-database.html" class="btn btn-secondary">View Candidate Database</a>
-          <div id="homeUploadStatus" class="home-upload-status">No upload required.</div>
         </div>
       </div>
     </div>
@@ -360,20 +358,6 @@
       jd: document.getElementById('homeJd').value
     });
     window.location.href = 'dashboard.html';
-  }
-  function showHomeUploadResult(result) {
-    document.getElementById('homeUploadStatus').textContent = result.added
-      ? `Resume Parsed. Candidate Added: ${result.candidate.name}.`
-      : `Duplicate detected: ${result.candidate.name} is already stored.`;
-  }
-  function handleHomeUpload(event) {
-    const file = event.target.files && event.target.files[0];
-    if (file) importCandidateFile(file, showHomeUploadResult);
-  }
-  function handleHomeDrop(event) {
-    event.preventDefault();
-    const file = event.dataTransfer.files && event.dataTransfer.files[0];
-    if (file) importCandidateFile(file, showHomeUploadResult);
   }
 </script>
 </body>

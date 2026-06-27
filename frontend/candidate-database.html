@@ -12,12 +12,13 @@
 .db-card { padding:24px; }
 .skill-row { display:flex; align-items:center; gap:12px; margin-bottom:12px; }
 .skill-name { width:150px; color:var(--text-secondary); font-size:13px; }
-.analytics-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:24px; align-items:start; }
+.analytics-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:24px; align-items:start; }
 .user-list { display:flex; flex-direction:column; gap:12px; }
-.user-row { display:grid; grid-template-columns: 1.2fr 1.1fr .9fr .55fr auto; gap:16px; align-items:center; padding:16px; border:1px solid var(--border); border-radius:12px; background:rgba(255,255,255,.03); }
-.admin-panel { margin-top:24px; padding:20px; border:1px solid rgba(245,158,11,.25); border-radius:12px; background:rgba(245,158,11,.06); }
-.admin-panel input { width:100%; max-width:260px; background:rgba(255,255,255,.06); border:1px solid var(--border); border-radius:10px; color:var(--text-primary); padding:10px 12px; outline:none; }
-.danger-btn { border:1px solid rgba(239,68,68,.35); color:#fecaca; background:rgba(239,68,68,.10); border-radius:10px; padding:9px 12px; cursor:pointer; }
+.user-row { display:grid; grid-template-columns: 1.2fr 1.1fr .9fr .55fr .8fr auto; gap:16px; align-items:center; padding:16px; border:1px solid var(--border); border-radius:12px; background:rgba(255,255,255,.03); }
+.score-pill { display:inline-flex; padding:4px 10px; border-radius:8px; font-size:13px; font-weight:800; font-family:'Space Grotesk',sans-serif; }
+.score-pill.high { background:rgba(16,185,129,.15); color:var(--green); }
+.score-pill.mid { background:rgba(99,102,241,.15); color:#a5b4fc; }
+.score-pill.low { background:rgba(245,158,11,.15); color:var(--amber); }
 .empty-state { color:var(--text-secondary); font-size:14px; padding:18px; border:1px dashed var(--border); border-radius:12px; }
 @media(max-width:900px){ .summary-bar,.analytics-grid,.user-row{ grid-template-columns:1fr; } }
 </style>
@@ -30,7 +31,7 @@
     <div class="section-header">
       <div class="section-label">TalentLens Database</div>
       <h1 class="section-title">Talent Pool <span>Analytics</span></h1>
-      <p class="section-subtitle">TalentLens ranks from its built-in candidate database by default. Uploaded resumes become real ATS-style candidate profiles with extracted names, skills, education, and experience.</p>
+      <p class="section-subtitle">View the stored candidate database, including built-in and user-added profiles with parsed names, skills, education, and experience.</p>
     </div>
 
     <section class="summary-bar">
@@ -53,27 +54,12 @@
         <div class="section-label">Top Skill Categories</div>
         <div id="skillCategories"></div>
       </section>
-      <section class="glass db-card">
-        <div class="section-label">Add Candidate</div>
-        <p style="color:var(--text-secondary);font-size:14px;margin-bottom:16px;">Upload Resume PDF, DOCX, or Candidate JSON. The candidate becomes part of the stored TalentLens database.</p>
-        <input id="candidateUpload" type="file" accept=".pdf,.docx,.json" style="display:none" onchange="handleUpload(event)"/>
-        <button class="btn btn-primary" onclick="document.getElementById('candidateUpload').click()">Upload New Candidate</button>
-        <div id="uploadStatus" style="color:var(--text-muted);font-size:13px;margin-top:12px;">No upload required for database ranking.</div>
-      </section>
     </div>
 
     <section class="glass db-card" style="margin-top:24px;">
       <div class="section-label">Candidate List</div>
-      <p style="color:var(--text-secondary);font-size:14px;margin-bottom:16px;">Built-in and uploaded candidates are shown with ATS evidence. Admin delete controls apply only to user-added candidates.</p>
+      <p style="color:var(--text-secondary);font-size:14px;margin-bottom:16px;">Built-in and user-added candidates are shown with parsed identity, education, skills, experience, source, score, recruiter confidence, hidden-gem status, and authenticity risk.</p>
       <div id="userCandidateList" class="user-list"></div>
-      <div class="admin-panel">
-        <div class="section-label">Admin Delete System</div>
-        <p style="color:var(--text-secondary);font-size:13px;margin-bottom:12px;">Enter admin password to delete uploaded candidates. Protected built-in candidates cannot be deleted.</p>
-        <input id="adminPassword" type="password" placeholder="Admin password"/>
-        <button class="danger-btn" id="unlockAdminBtn" style="margin-left:8px;" onclick="validateAdminPassword()">Unlock</button>
-        <button class="danger-btn" id="clearUploadsBtn" style="display:none;margin-left:8px;" onclick="clearUserAdded()">Clear Uploaded Candidates</button>
-        <div id="adminStatus" style="color:var(--text-muted);font-size:12px;margin-top:10px;">Admin controls locked.</div>
-      </div>
     </section>
   </main>
   <div id="footerPlaceholder"></div>
@@ -92,7 +78,6 @@ function renderDatabase() {
   const skillCounts = {};
   db.forEach(c => c.skills.forEach(skill => skillCounts[skill] = (skillCounts[skill] || 0) + 1));
   const sortedSkills = Object.entries(skillCounts).sort((a,b) => b[1] - a[1]).slice(0, 10);
-  const adminUnlocked = window.talentlensAdminUnlocked === true;
   const expBuckets = {
     '0-2 years': db.filter(c => c.experience <= 2).length,
     '3-5 years': db.filter(c => c.experience >= 3 && c.experience <= 5).length,
@@ -141,64 +126,24 @@ function renderDatabase() {
     <div class="user-row">
       <div style="display:flex;align-items:center;gap:12px;">
         <div class="avatar avatar-sm" style="background:${c.gradient};">${c.initials}</div>
-        <div><div style="font-weight:700;">${c.name}</div><div style="font-size:12px;color:var(--text-muted);">${c.role}</div></div>
+        <div><div style="font-weight:700;">${c.name || 'Candidate Profile'}</div><div style="font-size:12px;color:var(--text-muted);">${c.role || 'Role not specified'}</div></div>
       </div>
       <div>${c.skills.slice(0,4).map(skill => `<span class="tag tag-skill">${skill}</span>`).join('')}</div>
-      <div style="color:var(--text-secondary);font-size:13px;line-height:1.5;">${c.education || c.college || 'Resume education profile'}<br/>${c.college || c.education || 'Profile Generated From Resume'}</div>
-      <div style="font-family:'Space Grotesk';font-weight:800;">${c.experience || 0} yrs</div>
+      <div style="color:var(--text-secondary);font-size:13px;line-height:1.5;">${getCandidateEducationSummary(c) || 'Candidate Profile'}<br/>${c.college || ''}</div>
+      <div style="font-family:'Space Grotesk';font-weight:800;">${Number.isFinite(Number(c.experience)) ? Number(c.experience) : 0} yrs</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <span class="score-pill ${c.finalScore >= 88 ? 'high' : c.finalScore >= 75 ? 'mid' : 'low'}">${Number.isFinite(Number(c.finalScore)) ? Number(c.finalScore) : 0}</span>
+        <span class="badge ${getHiringConfidence(c) >= 85 ? 'badge-green' : getHiringConfidence(c) >= 70 ? 'badge-blue' : 'badge-amber'}">${getConfidenceLevel(getHiringConfidence(c))} Recruiter</span>
+      </div>
       <div>
+        ${c.hiddenGem || getHiddenGemScore(c) >= 84 ? '<span class="badge badge-amber" style="display:block;margin-bottom:8px;">Hidden Gem</span>' : ''}
+        <span class="badge ${c.riskLevel === 'Low' ? 'badge-green' : c.riskLevel === 'Medium' ? 'badge-amber' : 'badge-red'}" style="display:block;margin-bottom:8px;">${c.riskLevel || 'Medium'} Risk</span>
         <span class="badge ${c.source === 'User Added' ? 'badge-electric' : 'badge-blue'}">${c.source}</span>
-        ${adminUnlocked && c.source === 'User Added' ? `<button class="danger-btn" style="margin-left:8px;" onclick="deleteUserCandidate(${c.id})">Delete</button>` : ''}
       </div>
     </div>
   `).join('');
 
-  document.getElementById('clearUploadsBtn').style.display = adminUnlocked && userAdded.length ? 'inline-flex' : 'none';
-  if (adminUnlocked && !document.getElementById('adminStatus').textContent.includes('Deleted')) {
-    document.getElementById('adminStatus').textContent = 'Admin controls unlocked for uploaded candidates only.';
-  }
   setTimeout(animateProgressBars, 150);
-}
-
-function saveUserAdded(candidates) {
-  localStorage.setItem(TALENTLENS_DB_KEY, JSON.stringify(candidates));
-}
-
-function deleteUserCandidate(id) {
-  const userAdded = JSON.parse(localStorage.getItem(TALENTLENS_DB_KEY) || '[]').filter(c => Number(c.id) !== Number(id));
-  saveUserAdded(userAdded);
-  document.getElementById('adminStatus').textContent = 'Deleted uploaded candidate successfully.';
-  renderDatabase();
-}
-
-function clearUserAdded() {
-  if (window.talentlensAdminUnlocked !== true) {
-    document.getElementById('adminStatus').textContent = 'Invalid password. Uploaded candidates were not deleted.';
-    return;
-  }
-  saveUserAdded([]);
-  document.getElementById('adminStatus').textContent = 'Deleted all uploaded candidates successfully.';
-  renderDatabase();
-}
-
-function validateAdminPassword() {
-  const valid = document.getElementById('adminPassword').value === 'talentlens-admin';
-  window.talentlensAdminUnlocked = valid;
-  document.getElementById('adminStatus').textContent = valid
-    ? 'Admin controls unlocked. Uploaded candidates can now be deleted.'
-    : 'Invalid password. Uploaded candidates were not deleted.';
-  renderDatabase();
-}
-
-function handleUpload(event) {
-  const file = event.target.files && event.target.files[0];
-  if (!file) return;
-  importCandidateFile(file, result => {
-    document.getElementById('uploadStatus').textContent = result.added
-      ? `✓ Resume Parsed. ${result.candidate.name} added as User Added.`
-      : `Duplicate detected. ${result.candidate.name} is already stored.`;
-    renderDatabase();
-  });
 }
 
 renderDatabase();

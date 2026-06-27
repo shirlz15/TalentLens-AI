@@ -19,6 +19,11 @@ from typing import Any, Iterable
 
 try:
     from .jd_parser import JobRequirements, parse_job_description
+    from .llm_reasoner import (
+        generate_hidden_gem_reason,
+        generate_interview_recommendation,
+        generate_recruiter_reasoning,
+    )
     from .scoring import (
         DEFAULT_SCORING_CONFIG,
         ScoreResult,
@@ -31,9 +36,15 @@ try:
         skill_cluster_bonus,
         technical_fit_score,
     )
+    from .semantic_search import semantic_retrieval_map
     from .signal_engine import BehavioralConfig, BehavioralScore, DEFAULT_BEHAVIORAL_CONFIG, compute_behavioral_score
 except ImportError:  # pragma: no cover - supports direct script execution
     from jd_parser import JobRequirements, parse_job_description
+    from llm_reasoner import (
+        generate_hidden_gem_reason,
+        generate_interview_recommendation,
+        generate_recruiter_reasoning,
+    )
     from scoring import (
         DEFAULT_SCORING_CONFIG,
         ScoreResult,
@@ -46,6 +57,7 @@ except ImportError:  # pragma: no cover - supports direct script execution
         skill_cluster_bonus,
         technical_fit_score,
     )
+    from semantic_search import semantic_retrieval_map
     from signal_engine import BehavioralConfig, BehavioralScore, DEFAULT_BEHAVIORAL_CONFIG, compute_behavioral_score
 
 
@@ -67,6 +79,10 @@ class RankingConfig:
     max_strengths: int = 8
     max_weaknesses: int = 8
     append_intelligence_export_fields: bool = True
+    semantic_weight: float = 0.15
+    hybrid_weight: float = 0.85
+    semantic_retrieval_k: int = 100
+    llm_reasoning_enabled: bool = True
 
     @property
     def weights(self) -> dict[str, float]:
@@ -82,6 +98,8 @@ DEFAULT_OUTPUT_FIELDS = [
     "candidate_id",
     "rank",
     "final_score",
+    "semantic_similarity_score",
+    "retrieval_rank",
     "technical_fit_score",
     "experience_score",
     "career_consistency_score",
@@ -114,6 +132,8 @@ class RankedCandidate:
     candidate_id: str
     rank: int
     final_score: float
+    semantic_similarity: ScoreResult
+    retrieval_rank: int
     technical_fit: ScoreResult
     experience: ScoreResult
     career_consistency: ScoreResult
@@ -126,6 +146,7 @@ class RankedCandidate:
     hiring_confidence: ScoreResult
     executive_recruiter_summary: str
     explanation: str
+    interview_recommendation: str
     strengths: list[str]
     risks: list[str]
     raw_candidate: dict[str, Any] = field(repr=False)
@@ -139,6 +160,8 @@ class RankedCandidate:
             "rank": self.rank,
             "final_score": self.final_score,
             "score": self.final_score,
+            "semantic_similarity_score": self.semantic_similarity.score,
+            "retrieval_rank": self.retrieval_rank,
             "technical_fit_score": self.technical_fit.score,
             "technical_score": self.technical_fit.score,
             "experience_score": self.experience.score,
@@ -167,6 +190,7 @@ class RankedCandidate:
             "candidate_risks": "; ".join(self.risks),
             "risks": "; ".join(self.risks),
             "weaknesses": "; ".join(self.risks),
+            "interview_recommendation": self.interview_recommendation,
             "intelligence_card": json.dumps(card, sort_keys=True),
             "score_breakdown": json.dumps(breakdown, sort_keys=True),
             "matched_skills": ", ".join(self.technical_fit.metadata.get("matched_skills", [])),
@@ -184,6 +208,9 @@ class RankedCandidate:
             "candidate_id": self.candidate_id,
             "rank": self.rank,
             "final_score": self.final_score,
+            "semantic_similarity": self.semantic_similarity.to_dict(),
+            "semantic_similarity_score": self.semantic_similarity.score,
+            "retrieval_rank": self.retrieval_rank,
             "technical_fit": self.technical_fit.to_dict(),
             "experience": self.experience.to_dict(),
             "career_consistency": self.career_consistency.to_dict(),
@@ -208,6 +235,7 @@ class RankedCandidate:
             "candidate_strengths": self.strengths,
             "candidate_risks": self.risks,
             "weaknesses": self.risks,
+            "interview_recommendation": self.interview_recommendation,
             "score_breakdown": score_breakdown(self),
             "intelligence_card": card,
         }
@@ -216,6 +244,8 @@ class RankedCandidate:
         return {
             "candidate_id": self.candidate_id,
             "final_score": self.final_score,
+            "semantic_similarity_score": self.semantic_similarity.score,
+            "retrieval_rank": self.retrieval_rank,
             "technical_score": self.technical_fit.score,
             "experience_score": self.experience.score,
             "behavioral_score": self.behavioral.score,
@@ -234,6 +264,7 @@ class RankedCandidate:
             "why_ranked": self.explanation,
             "recruiter_reasoning": self.recruiter_cognitive_twin.metadata.get("recruiter_reasoning", ""),
             "hidden_gem_reason": self.hidden_gem.metadata.get("hidden_gem_reason", ""),
+            "interview_recommendation": self.interview_recommendation,
             "executive_recruiter_summary": self.executive_recruiter_summary,
             "score_breakdown": score_breakdown(self),
         }
@@ -249,10 +280,33 @@ def rank_candidates(
 
     active_config = config or DEFAULT_CONFIG
     requirements = _ensure_requirements(job_description)
+    job_description_text = _job_description_text(job_description, requirements)
     active_weights = _normalize_weights(weights or active_config.score_weights, active_config)
+    retrieval = semantic_retrieval_map(job_description_text, candidates) if job_description_text.strip() else {}
     scored: list[RankedCandidate] = []
 
     for candidate in candidates:
+        retrieval_entry = retrieval.get(_candidate_id(candidate), {})
+        semantic_score = float(retrieval_entry.get("semantic_similarity_score", 0.0) or 0.0)
+        semantic = ScoreResult(
+            score=round(semantic_score, 2),
+            explanation=(
+                f"Semantic retrieval matched this profile at rank {retrieval_entry.get('retrieval_rank', len(candidates) or 1)} "
+                f"with a {semantic_score:.2f} similarity score."
+                if retrieval_entry
+                else "Semantic retrieval fallback did not find additional similarity evidence."
+            ),
+            evidence=[
+                f"Semantic backend: {retrieval_entry.get('backend', 'deterministic-fallback')}",
+                f"Retrieval rank: {retrieval_entry.get('retrieval_rank', len(candidates) or 1)}",
+            ],
+            gaps=[] if semantic_score >= 45 else ["Semantic similarity is weaker than the strongest retrieved profiles"],
+            metadata={
+                "retrieval_rank": int(retrieval_entry.get("retrieval_rank", len(candidates) or 1)),
+                "raw_similarity": retrieval_entry.get("raw_similarity", 0.0),
+                "backend": retrieval_entry.get("backend", "deterministic-fallback"),
+            },
+        )
         technical = technical_fit_score(candidate, requirements, active_config.scoring)
         experience = experience_score(candidate, requirements, active_config.scoring)
         consistency = career_consistency_score(candidate, requirements, active_config.scoring)
@@ -277,6 +331,7 @@ def rank_candidates(
             active_config.scoring,
         )
         final_score = _combine_scores(
+            semantic,
             technical,
             experience,
             consistency,
@@ -290,7 +345,9 @@ def rank_candidates(
         risks = candidate_risks(technical, experience, consistency, behavioral, authenticity, active_config)
         decision = recruiter_decision_output(final_score, technical, experience, consistency, behavioral, authenticity)
         confidence = hiring_confidence_score(technical, experience, consistency, behavioral, authenticity)
+        retrieval_rank = int(retrieval_entry.get("retrieval_rank", len(candidates) or 1))
         explanation = generate_explanation(
+            semantic,
             technical,
             experience,
             consistency,
@@ -301,8 +358,35 @@ def rank_candidates(
             strengths,
             risks,
         )
+        recruiter_reasoning = (
+            generate_recruiter_reasoning(candidate, job_description_text, _breakdown_payload(semantic, technical, experience, consistency, cluster, behavioral, authenticity))
+            if active_config.llm_reasoning_enabled
+            else recruiter_twin.metadata.get("recruiter_reasoning", "")
+        )
+        hidden_gem_reason = (
+            generate_hidden_gem_reason(candidate, _breakdown_payload(semantic, technical, experience, consistency, cluster, behavioral, authenticity))
+            if active_config.llm_reasoning_enabled
+            else hidden_gem.metadata.get("hidden_gem_reason", "")
+        )
+        if recruiter_reasoning:
+            recruiter_twin = ScoreResult(
+                score=recruiter_twin.score,
+                explanation=recruiter_twin.explanation,
+                evidence=recruiter_twin.evidence,
+                gaps=recruiter_twin.gaps,
+                metadata={**recruiter_twin.metadata, "recruiter_reasoning": recruiter_reasoning},
+            )
+        if hidden_gem_reason:
+            hidden_gem = ScoreResult(
+                score=hidden_gem.score,
+                explanation=hidden_gem.explanation,
+                evidence=hidden_gem.evidence,
+                gaps=hidden_gem.gaps,
+                metadata={**hidden_gem.metadata, "hidden_gem_reason": hidden_gem_reason},
+            )
         executive_summary = generate_executive_recruiter_summary(
             final_score,
+            semantic,
             decision,
             technical,
             experience,
@@ -312,12 +396,15 @@ def rank_candidates(
             authenticity,
             risks,
         )
+        interview_recommendation = generate_interview_recommendation(candidate, job_description_text)
 
         scored.append(
             RankedCandidate(
                 candidate_id=_candidate_id(candidate),
                 rank=0,
                 final_score=final_score,
+                semantic_similarity=semantic,
+                retrieval_rank=retrieval_rank,
                 technical_fit=technical,
                 experience=experience,
                 career_consistency=consistency,
@@ -330,6 +417,7 @@ def rank_candidates(
                 hiring_confidence=confidence,
                 executive_recruiter_summary=executive_summary,
                 explanation=explanation,
+                interview_recommendation=interview_recommendation,
                 strengths=strengths,
                 risks=risks,
                 raw_candidate=candidate,
@@ -339,6 +427,7 @@ def rank_candidates(
     scored.sort(
         key=lambda item: (
             item.final_score,
+            item.semantic_similarity.score,
             item.technical_fit.score,
             item.experience.score,
             item.career_consistency.score,
@@ -353,6 +442,8 @@ def rank_candidates(
             candidate_id=item.candidate_id,
             rank=index,
             final_score=item.final_score,
+            semantic_similarity=item.semantic_similarity,
+            retrieval_rank=item.retrieval_rank,
             technical_fit=item.technical_fit,
             experience=item.experience,
             career_consistency=item.career_consistency,
@@ -365,6 +456,7 @@ def rank_candidates(
             hiring_confidence=item.hiring_confidence,
             executive_recruiter_summary=item.executive_recruiter_summary,
             explanation=item.explanation,
+            interview_recommendation=item.interview_recommendation,
             strengths=item.strengths,
             risks=item.risks,
             raw_candidate=item.raw_candidate,
@@ -374,6 +466,7 @@ def rank_candidates(
 
 
 def generate_explanation(
+    semantic: ScoreResult,
     technical: ScoreResult,
     experience: ScoreResult,
     career_consistency: ScoreResult,
@@ -388,6 +481,7 @@ def generate_explanation(
 
     strongest = max(
         (
+            ("semantic similarity", semantic.score),
             ("technical fit", technical.score),
             ("experience", experience.score),
             ("career consistency", career_consistency.score),
@@ -403,10 +497,15 @@ def generate_explanation(
         if skill_cluster.score > 0 and skill_cluster.evidence
         else ""
     )
+    semantic_text = (
+        f" {semantic.explanation}"
+        if semantic.score > 0
+        else " Semantic retrieval added limited supporting evidence for this profile."
+    )
 
     return (
         f"Ranked on a {final_score:.2f} final score. Strongest dimension is {strongest[0]} "
-        f"({strongest[1]:.2f}). {technical.explanation} {experience.explanation} "
+        f"({strongest[1]:.2f}).{semantic_text} {technical.explanation} {experience.explanation} "
         f"{career_consistency.explanation} {behavioral.explanation}{cluster_text}"
         f"{strength_text}{risk_text}"
     ).strip()
@@ -539,6 +638,7 @@ def hiring_confidence_score(
 
 def generate_executive_recruiter_summary(
     final_score: float,
+    semantic: ScoreResult,
     decision: dict[str, Any],
     technical: ScoreResult,
     experience: ScoreResult,
@@ -562,7 +662,7 @@ def generate_executive_recruiter_summary(
     first = (
         f"Strong {profile_type} with a {final_score:.2f} final score, "
         f"{experience.score:.0f} experience score, {career_consistency.score:.0f} career consistency, "
-        f"and {risk_level} authenticity risk."
+        f"{semantic.score:.0f} semantic similarity, and {risk_level} authenticity risk."
     )
     technical_clause = technical.explanation.rstrip(".").lower()
     behavioral_clause = behavioral.explanation.rstrip(".").lower()
@@ -654,6 +754,7 @@ def score_breakdown(candidate: RankedCandidate) -> dict[str, Any]:
     """Transparent score details with evidence and reasoning for every dimension."""
 
     return {
+        "semantic_similarity": candidate.semantic_similarity.to_dict(),
         "technical": candidate.technical_fit.to_dict(),
         "experience": candidate.experience.to_dict(),
         "career_consistency": candidate.career_consistency.to_dict(),
@@ -677,6 +778,7 @@ def score_breakdown(candidate: RankedCandidate) -> dict[str, Any]:
         "hidden_gem": candidate.hidden_gem.to_dict(),
         "recruiter_decision": candidate.recruiter_decision,
         "hiring_confidence": candidate.hiring_confidence.to_dict(),
+        "interview_recommendation": candidate.interview_recommendation,
         "executive_recruiter_summary": {
             "summary": candidate.executive_recruiter_summary,
             "evidence": {
@@ -705,6 +807,54 @@ def load_candidates_jsonl(path: str | Path) -> list[dict[str, Any]]:
                 raise ValueError(f"Candidate record on line {line_number} must be a JSON object")
             candidates.append(record)
     return candidates
+
+
+def load_candidates_json(path: str | Path) -> list[dict[str, Any]]:
+    """Load candidates from a JSON array or an object containing `candidates`."""
+
+    path = Path(path)
+    raw = path.read_text(encoding="utf-8").strip()
+    if not raw:
+        return []
+    data = json.loads(raw)
+    if isinstance(data, list):
+        candidates = data
+    elif isinstance(data, dict):
+        candidates = data.get("candidates") or data.get("data") or [data]
+    else:
+        raise ValueError(f"Unsupported JSON candidate payload in {path}")
+    if not all(isinstance(candidate, dict) for candidate in candidates):
+        raise ValueError(f"Every candidate in {path} must be a JSON object")
+    return list(candidates)
+
+
+def load_candidates_dataset(path: str | Path) -> list[dict[str, Any]]:
+    """Load candidates from JSONL or JSON, returning an empty list for empty files."""
+
+    path = Path(path)
+    if not path.exists():
+        raise FileNotFoundError(path)
+    if path.suffix.lower() == ".json":
+        return load_candidates_json(path)
+    if path.suffix.lower() == ".jsonl":
+        return load_candidates_jsonl(path)
+    raise ValueError(f"Unsupported candidate dataset format: {path.suffix}")
+
+
+def load_default_candidates(
+    preferred_paths: Iterable[str | Path] | None = None,
+) -> list[dict[str, Any]]:
+    """Load the first available non-empty candidate dataset."""
+
+    paths = list(preferred_paths or ("data/candidates.jsonl", "data/sample_candidates.json"))
+    for path in paths:
+        try:
+            candidates = load_candidates_dataset(path)
+        except FileNotFoundError:
+            continue
+        if candidates:
+            return candidates
+    return []
 
 
 def export_ranked_candidates(
@@ -767,7 +917,7 @@ def run_ranking(
 ) -> list[RankedCandidate]:
     """Convenience function for the full ranking pipeline."""
 
-    candidates = load_candidates_jsonl(candidates_path)
+    candidates = load_candidates_dataset(candidates_path)
     ranked = rank_candidates(candidates, job_description, config=config)
     export_ranked_candidates(ranked, output_path, sample_submission_path, config=config)
     return ranked
@@ -779,7 +929,50 @@ def _ensure_requirements(job_description: str | JobRequirements | dict[str, Any]
     return job_description
 
 
+def _job_description_text(
+    job_description: str | JobRequirements | dict[str, Any],
+    requirements: JobRequirements | dict[str, Any],
+) -> str:
+    if isinstance(job_description, str):
+        return job_description
+    if isinstance(requirements, JobRequirements):
+        return requirements.raw_text
+    if isinstance(job_description, dict):
+        for key in ("raw_text", "job_description", "description", "jd_text"):
+            value = job_description.get(key)
+            if value not in (None, ""):
+                return str(value)
+    return ""
+
+
+def _breakdown_payload(
+    semantic: ScoreResult,
+    technical: ScoreResult,
+    experience: ScoreResult,
+    career_consistency: ScoreResult,
+    skill_cluster: ScoreResult,
+    behavioral: BehavioralScore,
+    authenticity: ScoreResult,
+) -> dict[str, Any]:
+    return {
+        "semantic_similarity": semantic.to_dict(),
+        "technical": technical.to_dict(),
+        "experience": experience.to_dict(),
+        "career_consistency": career_consistency.to_dict(),
+        "skill_cluster_bonus": skill_cluster.to_dict(),
+        "behavioral": {
+            "score": behavioral.score,
+            "explanation": behavioral.explanation,
+            "evidence": behavioral.positive_signals,
+            "gaps": behavioral.risk_signals,
+            "metadata": behavioral.components,
+        },
+        "authenticity": authenticity.to_dict(),
+    }
+
+
 def _combine_scores(
+    semantic: ScoreResult,
     technical: ScoreResult,
     experience: ScoreResult,
     career_consistency: ScoreResult,
@@ -791,7 +984,8 @@ def _combine_scores(
 ) -> float:
     active_config = config or DEFAULT_CONFIG
     cluster_bonus = min(active_config.scoring.skill_cluster_bonus_cap, skill_cluster.score)
-    value = (
+    hybrid_score = min(
+        100.0,
         technical.score * weights["technical_fit"]
         + experience.score * weights["experience"]
         + career_consistency.score * weights["career_consistency"]
@@ -799,6 +993,7 @@ def _combine_scores(
         + authenticity.score * weights["authenticity"]
         + cluster_bonus
     )
+    value = hybrid_score * active_config.hybrid_weight + semantic.score * active_config.semantic_weight
     return round(min(100.0, value), 2)
 
 

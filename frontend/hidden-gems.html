@@ -75,7 +75,7 @@ function renderHiddenGems() {
         <div class="gem-score"><div class="label">Hidden Gem</div><div class="value" style="color:${getScoreColor(c.hiddenGemScore)};">${c.hiddenGemScore}</div></div>
         <div class="gem-score"><div class="label">Cognitive Twin</div><div class="value">${c.cognitiveTwinScore}</div></div>
         <div class="gem-score"><div class="label">Hiring Confidence</div><div class="value">${c.hiringConfidence}</div></div>
-        <div class="gem-score"><div class="label">Technical Fit</div><div class="value">${c.technicalScore}</div></div>
+        <div class="gem-score"><div class="label">Career Potential</div><div class="value">${c.growthPotential}</div></div>
       </div>
       <div>
         ${(c.skills || []).slice(0,7).map(skill => `<span class="tag tag-skill">${skill}</span>`).join('')}
@@ -85,7 +85,7 @@ function renderHiddenGems() {
       <div class="reason-box" style="border-left-color:var(--green);background:rgba(16,185,129,.08);"><strong>Recruiter recommendation:</strong> ${getRecruiterDecision(c)} with ${getConfidenceLevel(c.hiringConfidence)} hiring confidence. ${getExecutiveSummary(c)}</div>
       <a href="candidate-card.html?id=${c.id}" class="btn btn-secondary">Open Intelligence Card</a>
     </article>
-  `).join('') : '<div class="empty-gems">No hidden gems detected for the current search. Try a broader role or upload an early-career candidate with strong projects.</div>';
+  `).join('') : '<div class="empty-gems">No hidden gems detected for the current search yet. Try broadening the role scope or reviewing adjacent high-potential candidates from the stored database.</div>';
 }
 
 renderHiddenGems();

@@ -8,7 +8,7 @@
 <link rel="stylesheet" href="styles.css"/>
 <style>
 .insights-page { padding:40px 0 80px; }
-.metric-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin-bottom:24px; }
+.metric-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:16px; margin-bottom:24px; }
 .metric { padding:22px; }
 .chart-grid { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:24px; align-items:start; }
 .chart-card { padding:24px; }
@@ -38,6 +38,7 @@
     <section class="metric-grid">
       <div class="glass metric"><div class="stat-label">Total Candidates</div><div class="stat-value" id="totalCandidates">0</div></div>
       <div class="glass metric"><div class="stat-label">Avg Candidate Score</div><div class="stat-value" id="avgScore">0</div></div>
+      <div class="glass metric"><div class="stat-label">Avg Experience</div><div class="stat-value" id="avgExperience">0</div></div>
       <div class="glass metric"><div class="stat-label">Avg Cognitive Twin</div><div class="stat-value" id="avgTwin">0</div></div>
       <div class="glass metric"><div class="stat-label">High Confidence</div><div class="stat-value" id="highConfidence">0</div></div>
     </section>
@@ -78,8 +79,16 @@
         <div id="riskChart"></div>
       </div>
       <div class="glass chart-card">
+        <div class="section-label">Authenticity Distribution</div>
+        <div id="authenticityChart"></div>
+      </div>
+      <div class="glass chart-card">
         <div class="section-label">Top Skill Clusters</div>
         <div id="clusterChart"></div>
+      </div>
+      <div class="glass chart-card">
+        <div class="section-label">Top Universities</div>
+        <div id="universityChart"></div>
       </div>
       <div class="glass chart-card">
         <div class="section-label">Candidate Score Distribution</div>
@@ -123,6 +132,14 @@ function renderBars(targetId, entries, cls = '') {
   `).join('');
 }
 
+function getUniversityLabel(candidate) {
+  const college = String(candidate.college || '').trim();
+  if (college) return college;
+  const summary = String(getCandidateEducationSummary(candidate) || '').split(/Â·|·/).map(part => part.trim()).filter(Boolean);
+  const institution = summary.find(part => /(university|college|institute|school|iit|nit|iiit|bits|iim|karunya)/i.test(part));
+  return institution || summary[0] || 'Candidate Profile';
+}
+
 function renderInsights() {
   const data = getRankedCandidatesForActiveSearch().map(c => ({
     ...c,
@@ -141,6 +158,7 @@ function renderInsights() {
 
   document.getElementById('totalCandidates').textContent = data.length;
   document.getElementById('avgScore').textContent = avg('finalScore');
+  document.getElementById('avgExperience').textContent = data.length ? (data.reduce((sum,c) => sum + Number(c.experience || 0), 0) / data.length).toFixed(1) : '0';
   document.getElementById('avgTwin').textContent = avg('cognitiveTwinScore');
   document.getElementById('highConfidence').textContent = data.filter(c => c.confidenceLevel === 'High').length;
   const gemCount = data.filter(c => c.hiddenGem || c.hiddenGemScore >= 84).length;
@@ -157,7 +175,9 @@ function renderInsights() {
   renderBars('twinChart', Object.entries(countBy(data, c => bucketScore(c.cognitiveTwinScore))).sort());
   renderBars('confidenceChart', Object.entries(countBy(data, c => c.confidenceLevel)).sort(), 'blue');
   renderBars('riskChart', Object.entries(countBy(data, c => c.riskLevel || 'Medium')).sort(), 'green');
+  renderBars('authenticityChart', Object.entries(countBy(data, c => bucketScore(c.authenticityScore))).sort(), 'green');
   renderBars('clusterChart', Object.entries(clusters).map(([label, skills]) => [label, data.filter(c => skills.some(skill => (c.skills || []).includes(skill))).length]).sort((a,b) => b[1] - a[1]), 'blue');
+  renderBars('universityChart', Object.entries(countBy(data, c => getUniversityLabel(c))).sort((a,b) => b[1] - a[1]).slice(0, 6), 'blue');
   renderBars('scoreChart', Object.entries(countBy(data, c => bucketScore(c.finalScore))).sort());
 
   setTimeout(animateProgressBars, 150);
