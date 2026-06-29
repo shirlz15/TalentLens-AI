@@ -14,6 +14,7 @@ from typing import Any
 
 try:
     from fastapi import FastAPI, File, HTTPException, UploadFile
+    from fastapi.middleware.cors import CORSMiddleware
     from pydantic import BaseModel, Field
 
     FASTAPI_AVAILABLE = True
@@ -40,6 +41,9 @@ except ImportError:  # pragma: no cover - keeps module importable before deps ar
     class UploadFile:  # pragma: no cover - placeholder for import-time compatibility
         filename: str | None = None
 
+    class CORSMiddleware:  # pragma: no cover - placeholder for import-time compatibility
+        pass
+
     class _PlaceholderApp:
         def get(self, *_args: Any, **_kwargs: Any):
             def decorator(func: Any) -> Any:
@@ -58,8 +62,10 @@ except ImportError:  # pragma: no cover - keeps module importable before deps ar
 
 try:
     from .ranker import RankedCandidate, load_default_candidates, rank_candidates
+    from .resume_parser import parse_uploaded_candidate
 except ImportError:  # pragma: no cover - direct execution support
     from ranker import RankedCandidate, load_default_candidates, rank_candidates
+    from resume_parser import parse_uploaded_candidate
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -81,6 +87,15 @@ class CompareRequest(BaseModel):
 
 
 app = FastAPI(title="TalentLens AI Backend") if FASTAPI_AVAILABLE else FastAPI()
+
+if FASTAPI_AVAILABLE:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 
 @app.get("/")
@@ -142,45 +157,33 @@ async def upload_candidate(file: UploadFile | None = File(default=None)) -> dict
     if file is None:
         return {
             "status": "awaiting_file",
-            "message": "Upload a candidate JSON, PDF, or DOCX file.",
-            "supported_formats": ["json", "pdf", "docx"],
+            "message": "Upload a candidate JSON, PDF, DOCX, or image file.",
+            "supported_formats": ["json", "pdf", "docx", "png", "jpg", "jpeg", "webp"],
         }
 
     filename = getattr(file, "filename", None) or "candidate"
-    suffix = Path(filename).suffix.lower()
+    payload = await file.read()
+    try:
+        parsed = parse_uploaded_candidate(filename, payload)
+    except json.JSONDecodeError as exc:  # pragma: no cover - validation path
+        raise HTTPException(status_code=400, detail="Invalid JSON candidate upload.") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    if suffix == ".json":
-        payload = await file.read()
-        try:
-            parsed = json.loads(payload.decode("utf-8"))
-        except Exception as exc:  # pragma: no cover - validation path
-            raise HTTPException(status_code=400, detail="Invalid JSON candidate upload.") from exc
-        candidate = parsed.get("profile") if isinstance(parsed, dict) and isinstance(parsed.get("profile"), dict) else parsed
-        return {
-            "status": "parsed",
-            "message": "Candidate JSON parsed successfully.",
-            "candidate_profile": parsed,
-            "parsed_summary": {
-                "candidate_id": _candidate_id(parsed if isinstance(parsed, dict) else {}),
-                "name": _candidate_name(parsed if isinstance(parsed, dict) else {}),
-                "skills": _candidate_skills(parsed if isinstance(parsed, dict) else {}),
-                "education": (parsed.get("education") if isinstance(parsed, dict) else []) or [],
-                "source": "Uploaded JSON",
-            },
-        }
-
-    if suffix in {".pdf", ".docx"}:
-        return {
-            "status": "not_implemented",
-            "message": (
-                "Backend route structure is ready, but this backend demo currently supports structured JSON upload only. "
-                "PDF and DOCX resume parsing remains available in the frontend workflow."
-            ),
-            "supported_formats": ["json"],
-            "received_filename": filename,
-        }
-
-    raise HTTPException(status_code=400, detail="Unsupported file type. Use JSON, PDF, or DOCX.")
+    candidate_profile = parsed.candidate_profile
+    return {
+        "status": "parsed",
+        "message": f"{Path(filename).suffix.lower().lstrip('.').upper() or 'Document'} parsed successfully.",
+        "candidate_profile": candidate_profile,
+        "parsed_summary": {
+            "candidate_id": str(candidate_profile.get("candidate_id") or "unknown"),
+            "name": str(candidate_profile.get("name") or "Candidate Profile"),
+            "skills": candidate_profile.get("skills") or [],
+            "education": candidate_profile.get("education") or "",
+            "experience_summary": candidate_profile.get("experience_summary") or "",
+            "source": "User Added",
+        },
+    }
 
 
 def create_app() -> Any:

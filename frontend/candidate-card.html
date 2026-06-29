@@ -126,9 +126,9 @@ function buildCard(c) {
       <div class="avatar avatar-xl" style="background:${c.gradient};">${c.initials}</div>
       <div class="hero-info">
         <div class="hero-name">${c.name} ${c.hiddenGem?'<span class="gem-badge" style="font-size:12px;vertical-align:middle;">💎 Hidden Gem</span>':''}</div>
-        <div class="hero-meta">${c.role} &middot; ${(c.company || c.college || c.location || 'Profile Evidence')} &middot; 📍 ${c.location}</div>
+        <div class="hero-meta">${getCandidateHeadline(c)} &middot; ${getCandidateOrganization(c)} &middot; ${c.location}</div>
         <div class="hero-tags">
-          <span class="badge badge-purple">${c.experience} yrs exp</span>
+          <span class="badge badge-purple">${getCandidateExperienceBadge(c)}</span>
           <span class="badge ${c.riskLevel==='Low'?'badge-green':'badge-amber'}">${c.riskLevel} Risk</span>
           <span class="badge badge-blue">${c.education}</span>
           <span class="badge ${c.source==='User Added'?'badge-electric':'badge-purple'}">${c.source || 'Built-In'}</span>
@@ -164,7 +164,7 @@ function buildCard(c) {
       <div class="dimension-title">📈 Experience Depth</div>
       <div class="dimension-value" style="color:${getScoreColor(c.experienceScore)};">${c.experienceScore}</div>
       <div class="dimension-bar">${buildProgressBar(c.experienceScore,'blue')}</div>
-      <p class="dimension-insight">${c.experience} years of progressive experience. Career trajectory shows consistent upward momentum.</p>
+      <p class="dimension-insight">${getCandidateExperienceSummary(c)}. Career trajectory is interpreted from extracted resume evidence.</p>
     </div>
     <div class="dimension-card">
       <div class="dimension-title">🧠 Behavioral Signal</div>

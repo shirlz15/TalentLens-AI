@@ -67,7 +67,7 @@ function renderHiddenGems() {
         <div class="avatar avatar-md" style="background:${c.gradient};">${c.initials}</div>
         <div style="flex:1;">
           <div style="font-family:'Space Grotesk',sans-serif;font-size:20px;font-weight:800;">${c.name}</div>
-          <div style="color:var(--text-muted);font-size:13px;">${c.role} · ${c.source || 'Built-In'}</div>
+          <div style="color:var(--text-muted);font-size:13px;">${getCandidateHeadline(c)} · ${c.source || 'Built-In'}</div>
         </div>
         <span class="gem-badge">Hidden Gem</span>
       </div>

@@ -1,0 +1,16 @@
+Aisha Kapoor
+Senior Software Engineer
+B.E Computer Science and Engineering
+PES University
+Email: aisha.kapoor@example.com
+Phone: +91 9988776655
+LinkedIn: linkedin.com/in/aishakapoor
+GitHub: github.com/aishakapoor
+Experience:
+Software Engineer, 2021 - 2022
+Senior Software Engineer, 2023 - Present
+Built production systems with TypeScript, React, Node.js, Express, PostgreSQL, Docker, AWS
+Projects:
+- Payments orchestration platform using Node.js and PostgreSQL
+- Internal design system using React and TypeScript
+Skills: TypeScript, JavaScript, React, Node.js, Express, PostgreSQL, Docker, AWS, GitHub

@@ -15,12 +15,14 @@
 .analytics-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:24px; align-items:start; }
 .user-list { display:flex; flex-direction:column; gap:12px; }
 .user-row { display:grid; grid-template-columns: 1.2fr 1.1fr .9fr .55fr .8fr auto; gap:16px; align-items:center; padding:16px; border:1px solid var(--border); border-radius:12px; background:rgba(255,255,255,.03); }
+.admin-strip { display:grid; grid-template-columns: 1.2fr .8fr auto; gap:12px; align-items:end; margin-top:24px; }
+.admin-input { width:100%; background:var(--bg-card); border:1px solid var(--border); border-radius:10px; color:var(--text-primary); font-size:14px; padding:13px 14px; outline:none; }
 .score-pill { display:inline-flex; padding:4px 10px; border-radius:8px; font-size:13px; font-weight:800; font-family:'Space Grotesk',sans-serif; }
 .score-pill.high { background:rgba(16,185,129,.15); color:var(--green); }
 .score-pill.mid { background:rgba(99,102,241,.15); color:#a5b4fc; }
 .score-pill.low { background:rgba(245,158,11,.15); color:var(--amber); }
 .empty-state { color:var(--text-secondary); font-size:14px; padding:18px; border:1px dashed var(--border); border-radius:12px; }
-@media(max-width:900px){ .summary-bar,.analytics-grid,.user-row{ grid-template-columns:1fr; } }
+@media(max-width:900px){ .summary-bar,.analytics-grid,.user-row,.admin-strip{ grid-template-columns:1fr; } }
 </style>
 </head>
 <body>
@@ -60,6 +62,18 @@
       <div class="section-label">Candidate List</div>
       <p style="color:var(--text-secondary);font-size:14px;margin-bottom:16px;">Built-in and user-added candidates are shown with parsed identity, education, skills, experience, source, score, recruiter confidence, hidden-gem status, and authenticity risk.</p>
       <div id="userCandidateList" class="user-list"></div>
+      <div class="admin-strip">
+        <div>
+          <div class="field-label">Admin Delete</div>
+          <div style="color:var(--text-secondary);font-size:13px;">Delete only user-added candidates. Built-in candidates remain protected.</div>
+        </div>
+        <div>
+          <div class="field-label">Password</div>
+          <input id="adminDeletePassword" class="admin-input" type="password" placeholder="Enter admin password"/>
+        </div>
+        <button class="btn btn-secondary" onclick="runAdminDelete()">Delete User Added</button>
+      </div>
+      <div id="adminDeleteStatus" style="margin-top:12px;color:var(--text-secondary);font-size:13px;"></div>
     </section>
   </main>
   <div id="footerPlaceholder"></div>
@@ -126,11 +140,11 @@ function renderDatabase() {
     <div class="user-row">
       <div style="display:flex;align-items:center;gap:12px;">
         <div class="avatar avatar-sm" style="background:${c.gradient};">${c.initials}</div>
-        <div><div style="font-weight:700;">${c.name || 'Candidate Profile'}</div><div style="font-size:12px;color:var(--text-muted);">${c.role || 'Role not specified'}</div></div>
+        <div><div style="font-weight:700;">${c.name || 'Candidate Profile'}</div><div style="font-size:12px;color:var(--text-muted);">${getCandidateHeadline(c)}</div></div>
       </div>
       <div>${c.skills.slice(0,4).map(skill => `<span class="tag tag-skill">${skill}</span>`).join('')}</div>
-      <div style="color:var(--text-secondary);font-size:13px;line-height:1.5;">${getCandidateEducationSummary(c) || 'Candidate Profile'}<br/>${c.college || ''}</div>
-      <div style="font-family:'Space Grotesk';font-weight:800;">${Number.isFinite(Number(c.experience)) ? Number(c.experience) : 0} yrs</div>
+      <div style="color:var(--text-secondary);font-size:13px;line-height:1.5;">${getCandidateEducationSummary(c) || 'Candidate Profile'}<br/>${c.source || 'Built-In'}</div>
+      <div style="font-family:'Space Grotesk';font-weight:800;">${getCandidateExperienceSummary(c)}</div>
       <div style="display:flex;flex-direction:column;gap:8px;">
         <span class="score-pill ${c.finalScore >= 88 ? 'high' : c.finalScore >= 75 ? 'mid' : 'low'}">${Number.isFinite(Number(c.finalScore)) ? Number(c.finalScore) : 0}</span>
         <span class="badge ${getHiringConfidence(c) >= 85 ? 'badge-green' : getHiringConfidence(c) >= 70 ? 'badge-blue' : 'badge-amber'}">${getConfidenceLevel(getHiringConfidence(c))} Recruiter</span>
@@ -144,6 +158,18 @@ function renderDatabase() {
   `).join('');
 
   setTimeout(animateProgressBars, 150);
+}
+
+function runAdminDelete() {
+  const password = document.getElementById('adminDeletePassword').value;
+  const result = deleteUserAddedCandidates(password);
+  document.getElementById('adminDeleteStatus').textContent = result.ok
+    ? result.message
+    : result.error;
+  if (result.ok) {
+    document.getElementById('adminDeletePassword').value = '';
+    renderDatabase();
+  }
 }
 
 renderDatabase();

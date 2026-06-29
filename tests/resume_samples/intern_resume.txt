@@ -1,0 +1,13 @@
+Arjun Kumar
+B.E Computer Science and Engineering
+PSG College of Technology
+Email: arjun.kumar@example.com
+Phone: +91 9876501234
+LinkedIn: linkedin.com/in/arjunkumar
+GitHub: github.com/arjunkumar
+Experience:
+Software Engineering Intern, June 2024 - December 2024
+Developed internal dashboards using React, Node.js, SQL
+Projects:
+- Bug triage assistant using Python and REST API
+Skills: JavaScript, React, Node.js, SQL, Python, REST API, Git

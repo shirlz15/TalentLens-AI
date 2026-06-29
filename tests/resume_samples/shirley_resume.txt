@@ -1,0 +1,12 @@
+Shirley S
+B.Tech Computer Science and Engineering
+Karunya Institute of Technology and Sciences
+CGPA 9.84/10.00
+Email: shirley.s@example.com
+Phone: +91 9876543210
+LinkedIn: linkedin.com/in/shirleys
+GitHub: github.com/shirleys
+Python, FastAPI, React, LLMs, RAG, Sentence Transformers, FAISS, GitHub
+Projects:
+- TalentLens AI using Python, FastAPI, RAG and FAISS
+- Recruiter intelligence dashboard using React

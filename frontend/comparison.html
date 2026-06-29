@@ -204,8 +204,8 @@ function renderComparison() {
         <div class="cmp-candidate" style="background:rgba(139,92,246,0.06);border:1px solid rgba(139,92,246,0.2);border-radius:var(--radius);">
           <div class="avatar avatar-lg" style="background:${a.gradient};">${a.initials}</div>
           <div class="cmp-name">${a.name}</div>
-          <div class="cmp-role">${a.role}</div>
-          <div class="cmp-role">${a.company || a.college || a.location || 'Profile Evidence'} · ${a.experience} yrs</div>
+          <div class="cmp-role">${getCandidateHeadline(a)}</div>
+          <div class="cmp-role">${getCandidateOrganization(a)} - ${getCandidateExperienceSummary(a)}</div>
           <div class="cmp-role">${getCandidateEducationSummary(a) || 'Candidate Profile'}</div>
           ${a.hiddenGem?'<div class="gem-badge">💎 Hidden Gem</div>':''}
           <div style="color:${getScoreColor(a.finalScore)};font-family:Space Grotesk;font-size:36px;font-weight:800;">${a.finalScore}</div>
@@ -215,8 +215,8 @@ function renderComparison() {
         <div class="cmp-candidate" style="background:rgba(6,182,212,0.06);border:1px solid rgba(6,182,212,0.2);border-radius:var(--radius);">
           <div class="avatar avatar-lg" style="background:${b.gradient};">${b.initials}</div>
           <div class="cmp-name">${b.name}</div>
-          <div class="cmp-role">${b.role}</div>
-          <div class="cmp-role">${b.company || b.college || b.location || 'Profile Evidence'} · ${b.experience} yrs</div>
+          <div class="cmp-role">${getCandidateHeadline(b)}</div>
+          <div class="cmp-role">${getCandidateOrganization(b)} - ${getCandidateExperienceSummary(b)}</div>
           <div class="cmp-role">${getCandidateEducationSummary(b) || 'Candidate Profile'}</div>
           ${b.hiddenGem?'<div class="gem-badge">💎 Hidden Gem</div>':''}
           <div style="color:${getScoreColor(b.finalScore)};font-family:Space Grotesk;font-size:36px;font-weight:800;">${b.finalScore}</div>
@@ -233,9 +233,9 @@ function renderComparison() {
           <div class="cmp-val-b" style="text-align:left;color:var(--text-secondary);">${getCandidateEducationSummary(b) || 'Candidate Profile'}</div>
         </div>
         <div class="cmp-row">
-          <div class="cmp-val-a" style="text-align:right;color:var(--text-secondary);">${a.experience || 0} years</div>
+          <div class="cmp-val-a" style="text-align:right;color:var(--text-secondary);">${getCandidateExperienceSummary(a)}</div>
           <div class="cmp-label">Experience</div>
-          <div class="cmp-val-b" style="text-align:left;color:var(--text-secondary);">${b.experience || 0} years</div>
+          <div class="cmp-val-b" style="text-align:left;color:var(--text-secondary);">${getCandidateExperienceSummary(b)}</div>
         </div>
         <div class="cmp-row">
           <div class="cmp-val-a" style="text-align:right;color:var(--text-secondary);">${a.careerConsistency}</div>

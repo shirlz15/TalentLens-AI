@@ -1,0 +1,14 @@
+Priya Nair
+B.Tech Information Technology
+Anna University
+CGPA: 8.9/10
+Email: priya.nair@example.com
+Phone: +91 9123456780
+LinkedIn: linkedin.com/in/priyanair
+GitHub: github.com/priyanair
+Skills: Python, JavaScript, React, FastAPI, SQL, GitHub
+Projects:
+- Campus Placement Portal using React, FastAPI, PostgreSQL
+- Smart Attendance Tracker using Python and SQL
+Achievements:
+- Student developer lead for coding club

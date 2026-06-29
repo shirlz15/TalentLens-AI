@@ -8,3 +8,8 @@ python-multipart
 pydantic
 openai
 google-generativeai
+pymupdf
+pdfplumber
+python-docx
+pillow
+pytesseract

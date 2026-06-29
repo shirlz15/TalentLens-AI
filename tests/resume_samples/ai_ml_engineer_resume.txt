@@ -1,0 +1,15 @@
+John M Doe
+AI/ML Engineer
+M.Tech Artificial Intelligence
+IIIT Hyderabad
+Email: john.doe@example.com
+Phone: +91 9012345678
+LinkedIn: linkedin.com/in/johnmdoe
+GitHub: github.com/johnmdoe
+Experience:
+ML Engineer, 2022 - Present
+Built retrieval systems with Python, LLMs, RAG, Sentence Transformers, FAISS, LangChain, PyTorch, Docker
+Projects:
+- Resume ranking engine using LLMs, RAG and FAISS
+- Semantic search stack using Sentence Transformers and LangChain
+Skills: Python, Machine Learning, LLMs, RAG, Sentence Transformers, FAISS, LangChain, PyTorch, Docker, GitHub

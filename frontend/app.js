@@ -222,6 +222,146 @@ function buildNav(activePage) {
 const TALENTLENS_DB_KEY = 'talentlens_user_candidates_v1';
 const TALENTLENS_SEARCH_KEY = 'talentlens_active_search_v1';
 const LOW_CONFIDENCE_LABEL = 'Candidate Profile';
+const LOW_CONFIDENCE_ERROR = 'Unable to confidently parse this resume. Please upload a clearer PDF/DOCX/JSON.';
+const ADMIN_DELETE_PASSWORD = 'TalentLensAdmin2026';
+const BACKEND_UPLOAD_ENDPOINT = 'http://127.0.0.1:8000/upload-candidate';
+const PLACEHOLDER_NAME_PATTERN = /^(imported candidate|data candidate|uploaded candidate|resume profile|resume-based talent profile|candidate profile|not specified|stream)$/i;
+const NAME_NOISE_WORDS = new Set([
+  'skills', 'skill', 'education', 'projects', 'project', 'experience', 'summary', 'certifications',
+  'certification', 'contact', 'stream', 'resume', 'profile', 'github', 'linkedin', 'python', 'sql',
+  'rag', 'ai', 'ml', 'git', 'fastapi', 'react', 'machine', 'learning', 'developer', 'engineer', 'student', 'intern', 'objective'
+]);
+const CONTROLLED_SKILL_LIBRARY = [
+  { name: 'Python', aliases: ['python'] },
+  { name: 'Java', aliases: ['java'] },
+  { name: 'JavaScript', aliases: ['javascript', ' js '] },
+  { name: 'TypeScript', aliases: ['typescript'] },
+  { name: 'React', aliases: ['react'] },
+  { name: 'Node.js', aliases: ['node.js', 'nodejs'] },
+  { name: 'Express', aliases: ['express', 'express.js'] },
+  { name: 'FastAPI', aliases: ['fastapi'] },
+  { name: 'Flask', aliases: ['flask'] },
+  { name: 'Django', aliases: ['django'] },
+  { name: 'HTML', aliases: ['html'] },
+  { name: 'CSS', aliases: ['css'] },
+  { name: 'Tailwind', aliases: ['tailwind', 'tailwindcss'] },
+  { name: 'Vite', aliases: ['vite'] },
+  { name: 'SQL', aliases: ['sql'] },
+  { name: 'MongoDB', aliases: ['mongodb', 'mongo db'] },
+  { name: 'Supabase', aliases: ['supabase'] },
+  { name: 'Firebase', aliases: ['firebase'] },
+  { name: 'PostgreSQL', aliases: ['postgresql', 'postgres', 'psql'] },
+  { name: 'MySQL', aliases: ['mysql'] },
+  { name: 'Machine Learning', aliases: ['machine learning', ' ml ', 'ml models'] },
+  { name: 'Deep Learning', aliases: ['deep learning'] },
+  { name: 'NLP', aliases: ['nlp', 'natural language processing'] },
+  { name: 'Computer Vision', aliases: ['computer vision'] },
+  { name: 'LLMs', aliases: ['llm', 'llms', 'large language model', 'large language models'] },
+  { name: 'RAG', aliases: ['rag', 'retrieval augmented generation'] },
+  { name: 'Sentence Transformers', aliases: ['sentence transformers', 'sentence-transformers'] },
+  { name: 'FAISS', aliases: ['faiss'] },
+  { name: 'LangChain', aliases: ['langchain'] },
+  { name: 'PyTorch', aliases: ['pytorch'] },
+  { name: 'TensorFlow', aliases: ['tensorflow'] },
+  { name: 'Pandas', aliases: ['pandas'] },
+  { name: 'NumPy', aliases: ['numpy'] },
+  { name: 'Scikit-learn', aliases: ['scikit-learn', 'sklearn'] },
+  { name: 'GCP', aliases: ['gcp', 'google cloud'] },
+  { name: 'Azure', aliases: ['azure'] },
+  { name: 'AWS', aliases: ['aws', 'amazon web services'] },
+  { name: 'Docker', aliases: ['docker'] },
+  { name: 'Git', aliases: [' git '] },
+  { name: 'GitHub', aliases: ['github'] },
+  { name: 'REST API', aliases: ['rest api', 'restful api', 'api development'] },
+  { name: 'Data Analysis', aliases: ['data analysis', 'analytics'] },
+  { name: 'Spark', aliases: ['spark', 'apache spark'] },
+  { name: 'Airflow', aliases: ['airflow', 'apache airflow'] },
+  { name: 'ETL', aliases: ['etl'] },
+  { name: 'Prompt Engineering', aliases: ['prompt engineering'] },
+  { name: 'Vector DB', aliases: ['vector db', 'vector database', 'vector databases'] },
+  { name: 'Cybersecurity', aliases: ['cybersecurity', 'cyber security'] },
+  { name: 'IoT', aliases: ['iot', 'internet of things'] }
+];
+
+function normalizeTextValue(value) {
+  return String(value || '')
+    .replace(/[\u200b-\u200d\uFEFF]/g, '')
+    .replace(/\u00a0/g, ' ')
+    .replace(/[ \t]+/g, ' ')
+    .trim();
+}
+
+function isPlaceholderValue(value) {
+  const clean = normalizeTextValue(value);
+  return !clean || PLACEHOLDER_NAME_PATTERN.test(clean);
+}
+
+function isLikelySectionHeader(line) {
+  return /^(skills?|education|projects?|experience|summary|certifications?|contact|stream|resume|profile|objective|achievements?)$/i.test(normalizeTextValue(line).replace(/[:\-]+$/, ''));
+}
+
+function isLikelyNameToken(token) {
+  const clean = token.replace(/\./g, '');
+  if (!clean) return false;
+  if (NAME_NOISE_WORDS.has(clean.toLowerCase())) return false;
+  return /^[A-Z][a-z]+$/.test(clean) || /^[A-Z]$/.test(clean);
+}
+
+function getCandidateOrganization(candidate) {
+  const values = [candidate.company, candidate.college, candidate.location, candidate.source];
+  const meaningful = values.find(value => !isPlaceholderValue(value));
+  return meaningful || LOW_CONFIDENCE_LABEL;
+}
+
+function getCandidateExperienceSummary(candidate) {
+  const explicit = normalizeTextValue(candidate.experienceSummary || candidate.experience_summary);
+  if (explicit) return explicit;
+  return buildExperienceSummary(
+    candidate.resumeText || '',
+    candidate.projects || [],
+    Number(candidate.experience || 0),
+    candidate.role || '',
+    candidate.degree || ''
+  );
+}
+
+function getCandidateExperienceBadge(candidate) {
+  const experience = Number(candidate.experience || 0);
+  if (experience > 0) return `${experience} yrs exp`;
+  return getCandidateExperienceSummary(candidate);
+}
+
+function degreeShortLabel(degree) {
+  const text = normalizeTextValue(degree);
+  if (!text) return '';
+  const lower = text.toLowerCase();
+  let prefix = '';
+  if (/(bachelor of technology|b\.?\s?tech|b tech)/i.test(text)) prefix = 'B.Tech';
+  else if (/(bachelor of engineering|b\.?\s?e\.?)/i.test(text)) prefix = 'B.E';
+  else if (/(master of technology|m\.?\s?tech|m tech)/i.test(text)) prefix = 'M.Tech';
+  else if (/(master of engineering|m\.?\s?e\.?)/i.test(text)) prefix = 'M.E';
+  else if (/m\.?\s?sc|msc/i.test(text)) prefix = 'M.Sc';
+  else if (/b\.?\s?sc|bsc/i.test(text)) prefix = 'B.Sc';
+  else return text;
+  if (/computer science and engineering|\bcse\b/i.test(lower)) return `${prefix} CSE`;
+  if (/computer science|\bcs\b/i.test(lower)) return `${prefix} CS`;
+  if (/information technology|\bit\b/i.test(lower)) return `${prefix} IT`;
+  if (/artificial intelligence/i.test(lower)) return `${prefix} AI`;
+  if (/data science/i.test(lower)) return `${prefix} DS`;
+  return prefix;
+}
+
+function buildProfileLabel(role, degree, experienceSummary) {
+  const degreeLabel = degreeShortLabel(degree);
+  if (experienceSummary === 'Student / Intern Profile') return degreeLabel ? `${degreeLabel} Student` : 'Student / Intern Profile';
+  const cleanRole = normalizeTextValue(role);
+  if (cleanRole && cleanRole !== LOW_CONFIDENCE_LABEL) return cleanRole;
+  return degreeLabel || LOW_CONFIDENCE_LABEL;
+}
+
+function getCandidateHeadline(candidate) {
+  return normalizeTextValue(candidate.profileLabel || candidate.profile_label || candidate.role) || LOW_CONFIDENCE_LABEL;
+}
 
 function getCandidateDatabase() {
   const userAdded = JSON.parse(localStorage.getItem(TALENTLENS_DB_KEY) || '[]');
@@ -246,6 +386,9 @@ function normalizeStoredCandidate(candidate, source) {
   const linkedin = candidate.linkedin || parsed?.linkedin || '';
   const github = candidate.github || parsed?.github || '';
   const experience = normalizeExperience(candidate.experience ?? parsed?.experience, resumeText, projects);
+  const experienceSummary = normalizeTextValue(candidate.experienceSummary || candidate.experience_summary || parsed?.experienceSummary || parsed?.experience_summary || '');
+  const role = candidate.role || (parsed?.role || inferRoleFromResume(resumeText, skills));
+  const profileLabel = normalizeTextValue(candidate.profileLabel || candidate.profile_label || parsed?.profileLabel || parsed?.profile_label || buildProfileLabel(role, degree, experienceSummary || buildExperienceSummary(resumeText, projects, experience, role, degree)));
   const parsingConfidence = getParsingConfidence({
     name,
     skills,
@@ -259,19 +402,21 @@ function normalizeStoredCandidate(candidate, source) {
     linkedin,
     github,
     experience,
+    experienceSummary,
     resumeText
   });
-  const displayName = parsingConfidence < 45 ? LOW_CONFIDENCE_LABEL : name;
+  const displayName = isMeaningfulDisplayName(name) ? name : LOW_CONFIDENCE_LABEL;
   const initials = candidate.initials || initialsFromName(name);
-  const role = candidate.role || (parsed?.role || inferRoleFromResume(resumeText, skills));
+  const finalExperienceSummary = experienceSummary || buildExperienceSummary(resumeText, projects, experience, role, degree);
   return {
     ...candidate,
     source: candidate.source || source,
     name: displayName,
     displayName,
     extractedName: name,
+    candidate_name: name,
     initials,
-    role,
+    role: profileLabel || role,
     degree,
     college,
     education,
@@ -280,11 +425,13 @@ function normalizeStoredCandidate(candidate, source) {
     linkedin,
     github,
     experience,
+    experienceSummary: finalExperienceSummary,
     skills,
     projects,
     certifications,
     parsingConfidence,
-    profileLabel: displayName
+    profileLabel: profileLabel || role || LOW_CONFIDENCE_LABEL,
+    profile_label: profileLabel || role || LOW_CONFIDENCE_LABEL
   };
 }
 
@@ -302,24 +449,68 @@ function isMeaningfulDisplayName(value) {
   const clean = cleanName(value);
   if (!clean) return false;
   if (clean.length > 60) return false;
-  return !/^(imported candidate|data candidate|uploaded candidate|resume profile|resume-based talent profile|candidate profile|not specified)$/i.test(clean);
+  if (PLACEHOLDER_NAME_PATTERN.test(clean)) return false;
+  const tokens = clean.split(/\s+/).filter(Boolean);
+  if (!tokens.length || tokens.length > 4) return false;
+  return tokens.every(isLikelyNameToken);
 }
 
 function normalizeSkillList(skills) {
-  return Array.from(new Set((Array.isArray(skills) ? skills : String(skills || '').split(/[,;/|]/)).map(skill => String(skill || '').trim()).filter(Boolean)));
+  const text = Array.isArray(skills)
+    ? skills.map(value => stringifyEvidenceItem(value)).join('\n')
+    : String(skills || '');
+  const lower = ` ${text.toLowerCase().replace(/[^a-z0-9.+#/\s-]+/g, ' ')} `;
+  return CONTROLLED_SKILL_LIBRARY
+    .filter(entry => entry.aliases.some(alias => lower.includes(alias.toLowerCase())))
+    .map(entry => entry.name);
 }
 
 function normalizeTextList(values) {
-  if (Array.isArray(values)) return values.map(value => String(value || '').trim()).filter(Boolean);
+  if (Array.isArray(values)) return values.map(value => stringifyEvidenceItem(value)).filter(Boolean);
   if (!values) return [];
-  return String(values).split(/\n|[,;/|]/).map(value => value.trim()).filter(Boolean);
+  return String(values).split(/\n|[,;/|]/).map(value => normalizeTextValue(value)).filter(Boolean);
+}
+
+function stringifyEvidenceItem(value) {
+  if (value == null) return '';
+  if (typeof value === 'string') return normalizeTextValue(value);
+  if (typeof value === 'object') {
+    const primary = [value.title, value.name, value.project_name, value.role].find(Boolean);
+    const secondary = [value.tech_stack, value.technologies, value.description, value.summary, value.organization].find(Boolean);
+    return [primary, secondary].map(item => normalizeTextValue(item)).filter(Boolean).join(' - ');
+  }
+  return normalizeTextValue(value);
+}
+
+function buildExperienceSummary(resumeText, projects, experience, role, degree = '') {
+  const normalized = `${resumeText || ''} ${role || ''} ${degree || ''}`.toLowerCase();
+  const degreeLower = String(degree || '').toLowerCase();
+  const isStudentDegree = /(b\.tech|btech|bachelor of technology|bachelor of engineering|b\.e\b)/.test(degreeLower);
+  const hasStudentWords = /\b(student|undergraduate|graduate)\b/.test(normalized);
+  const hasInternship = /\b(intern|internship|trainee|apprentice)\b/.test(normalized) || /\b(intern|trainee)\b/i.test(role || '');
+  if (experience > 1) return `${experience} year${experience === 1 ? '' : 's'} experience`;
+  if (hasInternship) {
+    if (hasStudentWords || isStudentDegree) {
+      return 'Student / Intern Profile';
+    }
+    return 'Internship Experience';
+  }
+  if (hasStudentWords || (isStudentDegree && experience === 0) || projects.length >= 2) {
+    return 'Student / Intern Profile';
+  }
+  if (experience > 0) return `${experience} year${experience === 1 ? '' : 's'} experience`;
+  if (/\b(worked|developed|built|freelance|startup|maintained|deployed|consultant)\b/.test(normalized) || projects.length) {
+    return 'Experience evidence available';
+  }
+  return 'Candidate Profile';
 }
 
 function formatEducation(degree, college, fallback) {
-  const pieces = [degree, college].map(value => String(value || '').trim()).filter(Boolean);
+  const pieces = [degree, college].map(value => normalizeTextValue(value)).filter(Boolean);
+  if (pieces.length) return pieces.join(' - ');
   if (pieces.length) return pieces.join(' · ');
-  const fallbackText = String(fallback || '').trim();
-  return fallbackText && !/not specified|uploaded/i.test(fallbackText) ? fallbackText : '';
+  const fallbackText = normalizeTextValue(fallback);
+  return fallbackText && !/not specified|uploaded|stream/i.test(fallbackText) ? fallbackText : '';
 }
 
 function inferDegreeFromEducation(value) {
@@ -330,7 +521,7 @@ function inferDegreeFromEducation(value) {
 
 function normalizeExperience(value, resumeText, projects) {
   const direct = Number(value);
-  if (Number.isFinite(direct) && direct > 0) return direct;
+  if (Number.isFinite(direct) && direct >= 0) return direct;
   return inferExperienceFromText(resumeText || '', projects || []);
 }
 
@@ -345,7 +536,7 @@ function getParsingConfidence(candidate) {
   if (candidate.college) score += 10;
   if ((candidate.skills || []).length) score += Math.min(22, (candidate.skills.length / 8) * 22);
   if ((candidate.projects || []).length) score += Math.min(10, candidate.projects.length * 3);
-  if (Number(candidate.experience || 0) > 0) score += 10;
+  if (Number(candidate.experience || 0) > 0 || /Student \/ Intern Profile|Internship Experience|Experience evidence available/i.test(normalizeTextValue(candidate.experienceSummary))) score += 10;
   if ((candidate.resumeText || '').length > 500) score += 4;
   return Math.max(0, Math.min(100, Math.round(score)));
 }
@@ -357,25 +548,25 @@ function initialsFromName(name) {
 }
 
 function getCandidateEducationSummary(candidate) {
-  const degree = String(candidate.degree || '').trim();
-  const college = String(candidate.college || '').trim();
+  const degree = normalizeTextValue(candidate.degree);
+  const college = normalizeTextValue(candidate.college);
+  if (degree && college) return `${degree} - ${college}`;
   if (degree && college) return `${degree} · ${college}`;
   if (degree) return degree;
   if (college) return college;
-  const education = String(candidate.education || '').trim();
-  if (education && !/resume education profile|not specified|uploaded/i.test(education)) return education;
+  const education = normalizeTextValue(candidate.education);
+  if (education && !/resume education profile|not specified|uploaded|stream/i.test(education)) return education;
   return candidate.parsingConfidence < 45 ? LOW_CONFIDENCE_LABEL : '';
 }
 
 function buildCareerEvidenceTimeline(candidate) {
   const items = [];
-  const experience = Number(candidate.experience || 0);
   const role = String(candidate.role || '').trim() || LOW_CONFIDENCE_LABEL;
-  const organization = String(candidate.company || candidate.college || candidate.location || '').trim() || 'Profile Evidence';
+  const organization = getCandidateOrganization(candidate);
   items.push({
     title: role,
     organization,
-    detail: experience > 0 ? `${experience} years estimated experience` : 'Experience inferred from resume evidence'
+    detail: getCandidateExperienceSummary(candidate)
   });
 
   (candidate.projects || []).slice(0, 2).forEach(project => {
@@ -396,7 +587,7 @@ function buildCareerEvidenceTimeline(candidate) {
 
   const educationSummary = getCandidateEducationSummary(candidate);
   if (educationSummary) {
-    const parts = educationSummary.split(/Â·|·|Ã‚Â·/).map(part => part.trim()).filter(Boolean);
+    const parts = educationSummary.split(/\s+-\s+/).map(part => part.trim()).filter(Boolean);
     items.push({
       title: parts[0] || 'Education',
       organization: parts[1] || parts[0] || 'Education Evidence',
@@ -464,9 +655,14 @@ function addCandidateToDatabase(candidate) {
     ...candidate,
     source: 'User Added'
   }, 'User Added');
+  if ((normalizedCandidate.parsingConfidence || 0) < 60) {
+    return { added: false, error: LOW_CONFIDENCE_ERROR };
+  }
   const existing = JSON.parse(localStorage.getItem(TALENTLENS_DB_KEY) || '[]');
   const duplicate = getCandidateDatabase().find(item => {
-    const sameName = item.name && normalizedCandidate.name && getNameSimilarity(item.extractedName || item.name, normalizedCandidate.extractedName || normalizedCandidate.name) >= 0.86;
+    const sameName = isMeaningfulDisplayName(item.extractedName || item.name)
+      && isMeaningfulDisplayName(normalizedCandidate.extractedName || normalizedCandidate.name)
+      && getNameSimilarity(item.extractedName || item.name, normalizedCandidate.extractedName || normalizedCandidate.name) >= 0.86;
     const sameEmail = item.email && normalizedCandidate.email && item.email.trim().toLowerCase() === normalizedCandidate.email.trim().toLowerCase();
     const samePhone = item.phone && normalizedCandidate.phone && item.phone.replace(/\D/g, '') === normalizedCandidate.phone.replace(/\D/g, '');
     const sameLinkedin = item.linkedin && normalizedCandidate.linkedin && normalizeUrl(item.linkedin) === normalizeUrl(normalizedCandidate.linkedin);
@@ -484,14 +680,17 @@ function addCandidateToDatabase(candidate) {
     displayName: normalizedCandidate.displayName,
     extractedName: normalizedCandidate.extractedName,
     candidate_name: normalizedCandidate.extractedName || normalizedCandidate.name,
+    profileLabel: normalizedCandidate.profileLabel || normalizedCandidate.role,
+    profile_label: normalizedCandidate.profileLabel || normalizedCandidate.role,
     email: normalizedCandidate.email || '',
     phone: normalizedCandidate.phone || '',
     linkedin: normalizedCandidate.linkedin || '',
     github: normalizedCandidate.github || '',
     role: normalizedCandidate.role || inferRoleFromSkills(normalizedCandidate.skills || []),
-    company: normalizedCandidate.company || normalizedCandidate.college || normalizedCandidate.degree || normalizedCandidate.role || 'Profile Evidence',
+    company: normalizedCandidate.company || normalizedCandidate.college || normalizedCandidate.location || 'User Added',
     location: candidate.location || 'India',
     experience: Number(normalizedCandidate.experience || 0),
+    experienceSummary: normalizedCandidate.experienceSummary || getCandidateExperienceSummary(normalizedCandidate),
     finalScore: Number(candidate.finalScore || generated.finalScore),
     technicalScore: Number(candidate.technicalScore || generated.technicalScore),
     experienceScore: Number(candidate.experienceScore || generated.experienceScore),
@@ -500,7 +699,7 @@ function addCandidateToDatabase(candidate) {
     cognitiveTwinScore: Number(candidate.cognitiveTwinScore || generated.cognitiveTwinScore),
     hiddenGem: Boolean(candidate.hiddenGem || generated.hiddenGem),
     riskLevel: candidate.riskLevel || generated.riskLevel,
-    skills: normalizedCandidate.skills.length ? normalizedCandidate.skills : ['Python','SQL'],
+    skills: normalizedCandidate.skills || [],
     strengths: candidate.strengths || generated.strengths,
     weaknesses: candidate.weaknesses || generated.weaknesses,
     whyRanked: candidate.whyRanked || generated.whyRanked,
@@ -515,6 +714,7 @@ function addCandidateToDatabase(candidate) {
     college: normalizedCandidate.college || '',
     projects: normalizedCandidate.projects || [],
     certifications: normalizedCandidate.certifications || [],
+    parsingConfidence: Number(normalizedCandidate.parsingConfidence || 0),
     resumeText,
     gradient: candidate.gradient || 'linear-gradient(135deg,#06b6d4,#8b5cf6)',
     source: 'User Added',
@@ -522,6 +722,15 @@ function addCandidateToDatabase(candidate) {
   });
   localStorage.setItem(TALENTLENS_DB_KEY, JSON.stringify(existing));
   return { added: true, candidate: existing[existing.length - 1] };
+}
+
+function deleteUserAddedCandidates(password) {
+  const existing = JSON.parse(localStorage.getItem(TALENTLENS_DB_KEY) || '[]');
+  if (password !== ADMIN_DELETE_PASSWORD) {
+    return { ok: false, error: 'Incorrect admin password.' };
+  }
+  localStorage.setItem(TALENTLENS_DB_KEY, JSON.stringify([]));
+  return { ok: true, deletedCount: existing.length, message: `Deleted ${existing.length} user-added candidate${existing.length === 1 ? '' : 's'}.` };
 }
 
 function getHiddenGemScore(candidate) {
@@ -572,18 +781,40 @@ function getNameSimilarity(a, b) {
   return (shared * 2) / (left.length + right.length);
 }
 
+async function parseCandidateWithBackend(file) {
+  try {
+    const formData = new FormData();
+    formData.append('file', file, file.name);
+    const response = await fetch(BACKEND_UPLOAD_ENDPOINT, {
+      method: 'POST',
+      body: formData
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.detail || payload.message || 'Unable to parse uploaded document.');
+    return payload && payload.candidate_profile ? payload.candidate_profile : null;
+  } catch (error) {
+    if (error instanceof TypeError) return null;
+    throw error;
+  }
+}
+
 async function extractTextFromUpload(file, buffer) {
   const name = file.name.toLowerCase();
   if (name.endsWith('.json')) return new TextDecoder('utf-8').decode(buffer);
+  if (/\.(png|jpg|jpeg|webp)$/i.test(name)) throw new Error('Image parsing requires OCR support.');
   if (name.endsWith('.docx')) {
     const docxText = await extractDocxText(buffer);
     if (docxText.trim()) return docxText;
+    throw new Error('Could not extract text from DOCX.');
   }
   if (name.endsWith('.pdf')) {
     const pdfText = extractPdfText(buffer);
     if (pdfText.trim()) return pdfText;
+    throw new Error('Could not extract text from PDF.');
   }
-  return new TextDecoder('utf-8', { fatal: false }).decode(buffer);
+  const decoded = new TextDecoder('utf-8', { fatal: false }).decode(buffer);
+  if (normalizeResumeText(decoded)) return decoded;
+  throw new Error('Unsupported file type. Use PDF, DOCX, image, or JSON.');
 }
 
 function extractPdfText(buffer) {
@@ -664,12 +895,13 @@ function normalizeResumeText(text) {
 
 function pickCandidateName(lines, text) {
   const labeled = text.match(/(?:candidate\s+name|full\s+name|name)\s*[:\-]\s*([A-Za-z][A-Za-z .'-]{1,60})/i);
-  if (labeled) return cleanName(labeled[1]);
-  const blocked = /(resume|curriculum|vitae|email|phone|mobile|linkedin|github|education|skills|project|experience|certification|profile|summary|objective|developer|engineer|intern|student)/i;
-  const candidate = lines.slice(0, 12).find(line => {
-    const clean = cleanName(line);
+  if (labeled && isMeaningfulDisplayName(labeled[1])) return cleanName(labeled[1]);
+  const candidate = lines.slice(0, 5).find(line => {
+    const clean = cleanName(line.replace(/\b(email|phone|mobile|linkedin|github)\b.*$/i, ''));
     const words = clean.split(/\s+/).filter(Boolean);
-    return words.length >= 2 && words.length <= 4 && clean.length <= 50 && /^[A-Za-z .'-]+$/.test(clean) && !blocked.test(clean);
+    if (!clean || clean.length > 48 || /\d|@|https?:\/\//i.test(line)) return false;
+    if (isLikelySectionHeader(clean)) return false;
+    return words.length >= 2 && words.length <= 4 && words.every(isLikelyNameToken);
   });
   return candidate ? cleanName(candidate) : '';
 }
@@ -680,6 +912,8 @@ function cleanName(value) {
 
 function inferExperienceFromText(text, projects = []) {
   const normalized = String(text || '').replace(/[–—]/g, '-');
+  const explicitYears = normalized.match(/(\d+(?:\.\d+)?)\+?\s*(?:years|yrs|year)\b/i);
+  if (explicitYears) return Math.max(0, Math.min(20, Math.round(Number(explicitYears[1]))));
   const monthMap = { jan:0, feb:1, mar:2, apr:3, may:4, jun:5, jul:6, aug:7, sep:8, oct:9, nov:10, dec:11 };
   const currentYear = new Date().getFullYear();
   let months = 0;
@@ -701,22 +935,24 @@ function inferExperienceFromText(text, projects = []) {
   }
   if (internshipCount >= 2 || workSignals >= 8 || projectSignals >= 3) return 2;
   if (internshipCount || workSignals >= 3 || projectSignals >= 1) return 1;
-  return 1;
+  return 0;
 }
 
 function inferRoleFromSkills(skills) {
   const set = new Set((skills || []).map(skill => skill.toLowerCase()));
   if (set.has('machine learning') || set.has('deep learning') || set.has('pytorch') || set.has('rag') || set.has('llms')) return 'AI/ML Engineer';
+  if (set.has('sql') && (set.has('spark') || set.has('airflow') || set.has('etl'))) return 'Data Engineer';
   if (set.has('react') || set.has('javascript') || set.has('node.js') || set.has('typescript')) return 'Software Engineer';
   if (set.has('sql') || set.has('tableau') || set.has('power bi') || set.has('statistics')) return 'Data Analyst';
   if (set.has('java') || set.has('html') || set.has('css')) return 'Software Developer';
-  return 'Resume-Based Talent Profile';
+  return 'Candidate Profile';
 }
 
 function inferRoleFromResume(text, skills) {
   const lower = String(text || '').toLowerCase();
   const headline = String(text || '').split(/\n/).slice(0, 8).find(line => /\b(engineer|developer|analyst|scientist|designer|intern|consultant|manager)\b/i.test(line));
   if (headline) return cleanRole(headline);
+  if (/\b(student|undergraduate|graduate)\b/.test(lower)) return 'Student / Intern Profile';
   if (lower.includes('data scientist')) return 'Data Scientist';
   if (lower.includes('machine learning') || lower.includes('artificial intelligence')) return 'AI/ML Engineer';
   if (lower.includes('frontend') || lower.includes('front end')) return 'Frontend Developer';
@@ -731,14 +967,40 @@ function cleanRole(value) {
     .replace(/\b(resume|curriculum|vitae|profile|summary|objective)\b/gi, '')
     .replace(/\s+/g, ' ')
     .trim()
-    .slice(0, 60) || 'Resume-Based Talent Profile';
+    .slice(0, 60) || 'Candidate Profile';
 }
 
 function extractSectionItems(text, labels) {
-  const pattern = new RegExp(`(?:${labels})\\s*[:\\-]?\\s*([\\s\\S]{0,500}?)(?=\\n\\s*(?:education|skills|experience|certifications?|projects?|summary|objective|$))`, 'i');
+  const pattern = new RegExp(`(?:${labels})\\s*[:\\-]?\\s*([\\s\\S]{0,900}?)(?=\\n\\s*(?:education|skills|experience|certifications?|projects?|summary|objective|achievements?|contact)\\b|$)`, 'i');
   const match = text.match(pattern);
   if (!match) return [];
-  return match[1].split(/\n|;/).map(item => item.replace(/^[-*]\s*/, '').trim()).filter(item => item.length > 8).slice(0, 4);
+  return match[1]
+    .split(/\n|;/)
+    .map(item => normalizeTextValue(item.replace(/^[-*]\s*/, '')))
+    .filter(item => item.length > 3 && !isLikelySectionHeader(item))
+    .slice(0, 6);
+}
+
+function extractSkillsFromText(text) {
+  return normalizeSkillList(text);
+}
+
+function extractProjectsFromText(text) {
+  return extractSectionItems(text, 'projects?|project experience').map(item => item.replace(/\s{2,}/g, ' '));
+}
+
+function extractEducationDetails(text) {
+  const degree = inferDegreeFromEducation(text);
+  const college = inferCollegeFromText(text);
+  const departmentMatch = text.match(/\b(Computer Science(?: and Engineering)?|Information Technology|Electronics(?: and Communication)?|Artificial Intelligence|Data Science|Mechanical Engineering|Electrical Engineering)\b/i);
+  const gpaMatch = text.match(/\b(?:cgpa|gpa|percentage|score)\s*[:\-]?\s*([0-9]+(?:\.[0-9]+)?(?:\/10(?:\.0+)?|%))/i);
+  return {
+    degree,
+    college,
+    department: departmentMatch ? normalizeTextValue(departmentMatch[1]) : '',
+    gpa: gpaMatch ? normalizeTextValue(gpaMatch[1]) : '',
+    education: formatEducation(degree, college, '')
+  };
 }
 
 function generateCandidateIntelligence(candidate) {
@@ -794,39 +1056,94 @@ function generateCandidateIntelligence(candidate) {
 async function importCandidateFile(file, onDone) {
   const reader = new FileReader();
   reader.onload = async () => {
-    const buffer = reader.result;
-    const text = await extractTextFromUpload(file, buffer);
-    let candidate;
-    if (file.name.toLowerCase().endsWith('.json')) {
-      const parsed = JSON.parse(text);
-      const profile = parsed.profile || parsed;
-      candidate = {
-        name: profile.name || profile.full_name || parsed.candidate_name || parsed.name || LOW_CONFIDENCE_LABEL,
-        role: profile.headline || profile.role || inferRoleFromSkills(parsed.skills || profile.skills || []),
-        email: profile.email || parsed.email || '',
-        phone: profile.phone || parsed.phone || '',
-        linkedin: profile.linkedin_url || parsed.linkedin || '',
-        github: profile.github_url || parsed.github || '',
-        experience: profile.years_experience || parsed.years_experience || 0,
-        skills: parsed.skills || profile.skills || ['Python','SQL'],
-        degree: profile.degree || parsed.degree || '',
-        college: profile.college || parsed.college || '',
-        education: Array.isArray(parsed.education) ? parsed.education.map(e => e.degree || e.school || JSON.stringify(e)).join(', ') : (parsed.education || profile.education || profile.college || ''),
-        college: profile.college || parsed.college || '',
-        projects: parsed.projects || [],
-        certifications: parsed.certifications || [],
-        resumeText: text
-      };
-    } else {
-      candidate = {
-        ...extractCandidateProfileFromText(text),
-        resumeText: text
-      };
+    try {
+      const buffer = reader.result;
+      let candidate = await parseCandidateWithBackend(file);
+      if (!candidate) {
+        const text = await extractTextFromUpload(file, buffer);
+        candidate = file.name.toLowerCase().endsWith('.json')
+          ? parseCandidateJsonUpload(text)
+          : { ...extractCandidateProfileFromText(text), resumeText: text };
+      }
+      if (!hasExtractedCandidateEvidence(candidate)) {
+        throw new Error('Could not create a reliable candidate profile from the uploaded document.');
+      }
+      const result = addCandidateToDatabase(candidate);
+      if (onDone) onDone(result);
+    } catch (error) {
+      if (onDone) onDone({ added: false, error: error.message || 'Unable to parse uploaded document.' });
     }
-    const result = addCandidateToDatabase(candidate);
-    if (onDone) onDone(result);
   };
   reader.readAsArrayBuffer(file);
+}
+
+function hasExtractedCandidateEvidence(candidate) {
+  if (!candidate) return false;
+  return Boolean(
+    isMeaningfulDisplayName(candidate.name || candidate.candidate_name)
+    || normalizeTextValue(candidate.education)
+    || normalizeTextValue(candidate.college)
+    || (candidate.skills || []).length
+    || (candidate.projects || []).length
+    || candidate.email
+    || candidate.phone
+  );
+}
+
+function parseCandidateJsonUpload(text) {
+  const parsed = JSON.parse(text);
+  const profile = parsed.profile && typeof parsed.profile === 'object' ? parsed.profile : parsed;
+  const projects = normalizeTextList(parsed.projects || profile.projects || []);
+  const educationLines = Array.isArray(parsed.education)
+    ? parsed.education.map(item => stringifyEvidenceItem(item))
+    : normalizeTextList(parsed.education || profile.education || []);
+  const name = cleanName(profile.name || profile.full_name || parsed.candidate_name || parsed.name || '');
+  const skills = normalizeSkillList(parsed.skills || profile.skills || []);
+  const role = cleanRole(profile.headline || profile.role || inferRoleFromSkills(skills));
+  const experience = Number(profile.years_experience || parsed.years_experience || profile.experience || parsed.experience || 0) || 0;
+  const degree = normalizeTextValue(profile.degree || parsed.degree || '');
+  const college = normalizeTextValue(profile.college || parsed.college || '');
+  const education = formatEducation(degree, college, educationLines.join(' - '));
+  const experienceSummary = experience > 0 ? `${experience} year${experience === 1 ? '' : 's'} experience` : buildExperienceSummary('', projects, experience, role, degree);
+  const profileLabel = buildProfileLabel(role, degree, experienceSummary);
+  const parsingConfidence = getParsingConfidence({
+    name: isMeaningfulDisplayName(name) ? name : LOW_CONFIDENCE_LABEL,
+    skills,
+    projects,
+    degree,
+    college,
+    education,
+    email: profile.email || parsed.email || '',
+    phone: profile.phone || parsed.phone || '',
+    linkedin: profile.linkedin_url || profile.linkedin || parsed.linkedin || '',
+    github: profile.github_url || profile.github || parsed.github || '',
+    experience,
+    experienceSummary,
+    resumeText: normalizeResumeText(text)
+  });
+  return {
+    candidate_id: `USER_${Date.now()}`,
+    name: isMeaningfulDisplayName(name) ? name : LOW_CONFIDENCE_LABEL,
+    candidate_name: isMeaningfulDisplayName(name) ? name : LOW_CONFIDENCE_LABEL,
+    profileLabel,
+    profile_label: profileLabel,
+    role: profileLabel || role || 'Candidate Profile',
+    degree,
+    college,
+    education,
+    email: profile.email || parsed.email || '',
+    phone: profile.phone || parsed.phone || '',
+    linkedin: profile.linkedin_url || profile.linkedin || parsed.linkedin || '',
+    github: profile.github_url || profile.github || parsed.github || '',
+    experience,
+    experienceSummary,
+    skills,
+    projects,
+    certifications: normalizeTextList(parsed.certifications || profile.certifications || []),
+    parsing_confidence: parsingConfidence,
+    resumeText: normalizeResumeText(text),
+    source: 'User Added'
+  };
 }
 
 function extractCandidateProfileFromText(text) {
@@ -841,50 +1158,70 @@ function extractCandidateProfileFromText(text) {
   const phone = (cleanedText.match(/(?:\+?91[-\s]?)?[6-9]\d{9}/) || cleanedText.match(/(?:\+\d{1,3}[-\s]?)?(?:\d[-\s]?){8,14}\d/) || [''])[0].trim();
   const linkedin = (cleanedText.match(/(?:https?:\/\/)?(?:www\.)?linkedin\.com\/[^\s)]+/i) || [''])[0];
   const github = (cleanedText.match(/(?:https?:\/\/)?(?:www\.)?github\.com\/[^\s)]+/i) || [''])[0];
-  const skillsText = findLabel('skills') || cleanedText;
-  const knownSkills = ['Python','SQL','Machine Learning','Deep Learning','PyTorch','TensorFlow','LLMs','RAG','LangChain','Vector DBs','MLOps','Kubernetes','Spark','Airflow','React','FastAPI','Docker','NLP','Tableau','Power BI','Git','AWS','GCP','Java','JavaScript','TypeScript','Node.js','Excel','Statistics','Pandas','NumPy','Scikit-learn','HTML','CSS','MongoDB','MySQL','PostgreSQL'];
-  const skills = knownSkills.filter(skill => skillsText.toLowerCase().includes(skill.toLowerCase()) || (skill === 'LLMs' && skillsText.toLowerCase().includes('llm')));
-  const projects = extractSectionItems(cleanedText, 'projects');
-  const experience = Number((cleanedText.match(/(\d+(?:\.\d+)?)\+?\s*(?:years|yrs|year)/i) || [0, 0])[1]) || inferExperienceFromText(cleanedText, projects);
-  const degree = findLabel('degree') || findLabel('education') || inferDegreeFromEducation(cleanedText);
-  const college = findLabel('college') || findLabel('university') || inferCollegeFromText(cleanedText);
-  const education = formatEducation(degree, college, findLabel('education'));
+  const skills = extractSkillsFromText(findLabel('skills') || cleanedText);
+  const projects = extractProjectsFromText(cleanedText);
+  const experience = inferExperienceFromText(cleanedText, projects);
+  const educationDetails = extractEducationDetails(cleanedText);
+  const degree = findLabel('degree') || educationDetails.degree;
+  const college = findLabel('college') || findLabel('university') || educationDetails.college;
+  const education = formatEducation(degree, college, findLabel('education') || educationDetails.education);
   const certifications = extractSectionItems(cleanedText, 'certifications|certificates');
+  const inferredRole = findLabel('role') || findLabel('headline') || inferRoleFromResume(cleanedText, skills);
+  const experienceSummary = buildExperienceSummary(cleanedText, projects, experience, inferredRole, degree);
+  const profileLabel = buildProfileLabel(inferredRole, degree, experienceSummary);
+  const resolvedName = name || buildNameFromResumeIdentity(email, linkedin, github, lines);
+  const parsingConfidence = getParsingConfidence({
+    name: resolvedName,
+    skills,
+    projects,
+    certifications,
+    degree,
+    college,
+    education,
+    email,
+    phone,
+    linkedin,
+    github,
+    experience,
+    experienceSummary,
+    resumeText: cleanedText
+  });
   return {
-    name: name || buildNameFromResumeIdentity(email, linkedin, github, lines),
-    candidate_name: name || buildNameFromResumeIdentity(email, linkedin, github, lines),
+    candidate_id: `USER_${Date.now()}`,
+    name: resolvedName,
+    candidate_name: resolvedName,
+    profileLabel,
+    profile_label: profileLabel,
     degree,
     email,
     phone,
     linkedin,
     github,
-    role: findLabel('role') || findLabel('headline') || inferRoleFromResume(cleanedText, skills),
+    role: profileLabel || inferredRole,
     experience,
-    skills: skills.length ? skills : ['Python','SQL'],
+    experienceSummary,
+    skills,
     education: education || LOW_CONFIDENCE_LABEL,
     college,
     projects,
     certifications,
+    parsing_confidence: parsingConfidence,
     resumeText: cleanedText
   };
 }
 
 function buildNameFromResumeIdentity(email, linkedin, github, lines) {
-  const fromEmail = email ? cleanName(email.split('@')[0].replace(/[._-]+/g, ' ')) : '';
-  if (fromEmail && fromEmail.split(/\s+/).length >= 2) return toTitleCase(fromEmail);
-  const fromProfile = linkedin || github;
-  if (fromProfile) {
-    const handle = fromProfile.split('/').filter(Boolean).pop() || '';
-    const clean = cleanName(handle.replace(/[._-]+/g, ' '));
-    if (clean) return toTitleCase(clean);
-  }
-  const line = lines.find(item => cleanName(item).split(/\s+/).length >= 2 && !/(resume|education|skills|project|experience|certification|email|phone|linkedin|github)/i.test(item));
+  const line = lines.slice(0, 5).find(item => {
+    const clean = cleanName(item);
+    const tokens = clean.split(/\s+/).filter(Boolean);
+    return tokens.length >= 2 && tokens.length <= 4 && tokens.every(isLikelyNameToken);
+  });
   return line ? toTitleCase(cleanName(line)) : LOW_CONFIDENCE_LABEL;
 }
 
 function inferCollegeFromText(text) {
   const lines = String(text || '').split(/\r?\n/).map(line => line.trim()).filter(Boolean);
-  const labelled = lines.find(line => /(university|college|institute|school|iit|nit|iiit|bits|karunya)/i.test(line));
+  const labelled = lines.find(line => /(university|college|institute|school|iit|nit|iiit|bits|karunya)/i.test(line) && !isLikelySectionHeader(line));
   if (labelled) return cleanRole(labelled);
   const match = String(text || '').match(/(?:at|from|of)\s+([A-Z][A-Za-z&.,'() -]{2,80}(?:University|College|Institute|School|Campus)?)/);
   return match ? cleanRole(match[1]) : '';
@@ -964,3 +1301,4 @@ function initNetworkCanvas(canvasId = 'bgCanvas') {
   }
   draw();
 }
+

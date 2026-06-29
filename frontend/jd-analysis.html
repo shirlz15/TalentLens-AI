@@ -75,7 +75,7 @@
         <h2 style="font-family:'Space Grotesk',sans-serif;font-size:24px;margin-bottom:8px;">Upload new candidate</h2>
         <p style="color:var(--text-secondary);font-size:14px;margin-bottom:18px;">Add a resume PDF, DOCX, or candidate JSON. The profile is stored locally, marked User Added, and included in future rankings.</p>
         <div class="upload-lite">
-          <input id="candidateUpload" type="file" accept=".pdf,.docx,.json" style="display:none" onchange="handleCandidateUpload(event)"/>
+          <input id="candidateUpload" type="file" accept=".pdf,.docx,.json,.png,.jpg,.jpeg,.webp" style="display:none" onchange="handleCandidateUpload(event)"/>
           <button class="btn btn-secondary" style="width:100%;justify-content:center;" onclick="document.getElementById('candidateUpload').click()">Upload New Candidate</button>
           <div id="uploadStatus" style="margin-top:12px;color:var(--text-muted);font-size:13px;">No upload needed to rank stored candidates.</div>
         </div>
@@ -111,7 +111,7 @@ function refreshPreview() {
     <div class="preview-row">
       <div>
         <div class="preview-name">${c.name}</div>
-        <div class="preview-meta">${c.role} · ${c.source}</div>
+        <div class="preview-meta">${getCandidateHeadline(c)} · ${c.source}</div>
       </div>
       <span class="score-pill ${c.finalScore >= 88 ? 'high' : c.finalScore >= 75 ? 'mid' : 'low'}">${c.finalScore}</span>
     </div>
@@ -131,8 +131,10 @@ function handleCandidateUpload(event) {
   const file = event.target.files && event.target.files[0];
   if (!file) return;
   importCandidateFile(file, result => {
-    document.getElementById('uploadStatus').textContent = result.added
-      ? `✓ Resume Parsed. ${result.candidate.name} added as User Added.`
+    document.getElementById('uploadStatus').textContent = result.error
+      ? result.error
+      : result.added
+      ? `Parsed successfully. ${result.candidate.name} added as User Added.`
       : `Duplicate detected. ${result.candidate.name} is already in User Added candidates.`;
     refreshCounts();
     refreshPreview();
@@ -145,3 +147,4 @@ refreshPreview();
 </script>
 </body>
 </html>
+

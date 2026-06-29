@@ -135,7 +135,7 @@ function renderBars(targetId, entries, cls = '') {
 function getUniversityLabel(candidate) {
   const college = String(candidate.college || '').trim();
   if (college) return college;
-  const summary = String(getCandidateEducationSummary(candidate) || '').split(/Â·|·/).map(part => part.trim()).filter(Boolean);
+  const summary = String(getCandidateEducationSummary(candidate) || '').split(/\s+-\s+/).map(part => part.trim()).filter(Boolean);
   const institution = summary.find(part => /(university|college|institute|school|iit|nit|iiit|bits|iim|karunya)/i.test(part));
   return institution || summary[0] || 'Candidate Profile';
 }
@@ -187,3 +187,4 @@ renderInsights();
 </script>
 </body>
 </html>
+

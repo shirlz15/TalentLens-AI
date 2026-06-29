@@ -125,14 +125,14 @@ function renderTable(data) {
           <div class="avatar avatar-sm" style="background:${c.gradient};">${c.initials}</div>
           <div>
             <div style="font-weight:700;">${c.name} ${c.hiddenGem ? '<span class="gem-badge" style="font-size:10px;padding:3px 8px;">Gem</span>' : ''}</div>
-            <div style="font-size:12px;color:var(--text-muted);">${c.role} · ${c.location}</div>
+            <div style="font-size:12px;color:var(--text-muted);">${getCandidateHeadline(c)} · ${c.location}</div>
           </div>
         </div>
       </td>
       <td>
         <div style="font-size:12px;color:var(--text-secondary);line-height:1.6;">
           <strong style="color:var(--text-primary);">${getCandidateEducationSummary(c) || 'Candidate Profile'}</strong><br/>
-          ${c.experience || 0} yrs experience<br/>
+          ${getCandidateExperienceSummary(c)}<br/>
           ${(c.skills || []).slice(0,4).map(skill => `<span class="tag tag-skill">${skill}</span>`).join('')}
         </div>
       </td>
@@ -154,7 +154,7 @@ function filterCandidates() {
   const source = document.getElementById('filterSource').value;
   const expRange = document.getElementById('filterExp').value;
   let data = [...activeRankings];
-  if (q) data = data.filter(c => `${c.name} ${c.role} ${c.company}`.toLowerCase().includes(q));
+  if (q) data = data.filter(c => `${c.name} ${getCandidateHeadline(c)} ${c.company}`.toLowerCase().includes(q));
   if (skill) data = data.filter(c => c.skills.includes(skill));
   if (source) data = data.filter(c => c.source === source);
   if (expRange === '0-4') data = data.filter(c => c.experience <= 4);
@@ -178,7 +178,7 @@ function openSidebar(id) {
       <div class="avatar avatar-lg" style="background:${c.gradient};">${c.initials}</div>
       <div>
         <div style="font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:800;">${c.name}</div>
-        <div style="color:var(--text-muted);font-size:14px;">${c.role}</div>
+        <div style="color:var(--text-muted);font-size:14px;">${getCandidateHeadline(c)}</div>
         <div style="margin-top:8px;"><span class="badge ${c.source === 'User Added' ? 'badge-electric' : 'badge-blue'}">${c.source}</span></div>
       </div>
     </div>
@@ -192,7 +192,7 @@ function openSidebar(id) {
     <div style="color:var(--text-secondary);font-size:14px;line-height:1.7;margin-bottom:18px;">
       Education: ${getCandidateEducationSummary(c) || 'Candidate Profile'}<br/>
       College: ${c.college || ''}<br/>
-      Experience: ${c.experience || 0} years<br/>
+      Experience: ${getCandidateExperienceSummary(c)}<br/>
       Skills: ${(c.skills || []).join(', ')}
     </div>
     <div class="divider"></div>

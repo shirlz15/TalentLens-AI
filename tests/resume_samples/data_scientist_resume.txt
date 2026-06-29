@@ -1,0 +1,16 @@
+Rohan Mehta
+Data Scientist
+M.Sc Data Science
+Indian Institute of Science
+Email: rohan.mehta@example.com
+Phone: +91 9090909090
+LinkedIn: linkedin.com/in/rohanmehta
+GitHub: github.com/rohanmehta
+Experience:
+Data Analyst, 2022 - 2023
+Data Scientist, 2024 - Present
+Built demand forecasting models with Python, Pandas, NumPy, Scikit-learn, SQL and Data Analysis
+Projects:
+- Churn prediction model using Python and Scikit-learn
+- Customer segmentation dashboard using Pandas and SQL
+Skills: Python, Pandas, NumPy, Scikit-learn, SQL, Data Analysis, GitHub
