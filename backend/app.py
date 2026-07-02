@@ -101,7 +101,14 @@ app = FastAPI(title="TalentLens AI Backend") if FASTAPI_AVAILABLE else FastAPI()
 if FASTAPI_AVAILABLE:
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=ALLOWED_ORIGINS,
+        allow_origins=[
+        "http://localhost:8080",
+        "http://127.0.0.1:8080",
+        "http://localhost:4173",
+        "http://127.0.0.1:4173",
+        "https://lambent-dodol-6cd476.netlify.app",
+        "https://tiny-sopapillas-e6d773.netlify.app",
+    ],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
