@@ -214,17 +214,23 @@ function buildNav(activePage) {
     <div class="nav-links">
       ${links.map(l=>`<a href="${l.href}" class="nav-link${activePage===l.href?' active':''}">${l.label}</a>`).join('')}
     </div>
-    <a href="jd-analysis.html" class="nav-cta">Analyze Candidates</a>
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:flex-end;">
+      <div id="backendStatus" style="font-size:12px;color:var(--text-muted);padding:8px 10px;border:1px solid var(--border);border-radius:999px;background:rgba(255,255,255,.03);white-space:nowrap;">Backend: Checking...</div>
+      <a href="jd-analysis.html" class="nav-cta">Analyze Candidates</a>
+    </div>
   </nav>`;
 }
 
 // Built-in TalentLens database workflow
 const TALENTLENS_DB_KEY = 'talentlens_user_candidates_v1';
 const TALENTLENS_SEARCH_KEY = 'talentlens_active_search_v1';
+const TALENTLENS_RESULTS_KEY = 'talentlens_rank_results_v1';
 const LOW_CONFIDENCE_LABEL = 'Candidate Profile';
 const LOW_CONFIDENCE_ERROR = 'Unable to confidently parse this resume. Please upload a clearer PDF/DOCX/JSON.';
+const BACKEND_NOT_RUNNING_MESSAGE = 'Backend not running. Please start FastAPI server.';
 const ADMIN_DELETE_PASSWORD = 'TalentLensAdmin2026';
-const BACKEND_UPLOAD_ENDPOINT = 'http://127.0.0.1:8000/upload-candidate';
+const API_BASE = 'http://127.0.0.1:8000';
+const BACKEND_UPLOAD_ENDPOINT = `${API_BASE}/upload-candidate`;
 const PLACEHOLDER_NAME_PATTERN = /^(imported candidate|data candidate|uploaded candidate|resume profile|resume-based talent profile|candidate profile|not specified|stream)$/i;
 const NAME_NOISE_WORDS = new Set([
   'skills', 'skill', 'education', 'projects', 'project', 'experience', 'summary', 'certifications',
@@ -282,6 +288,96 @@ const CONTROLLED_SKILL_LIBRARY = [
   { name: 'Cybersecurity', aliases: ['cybersecurity', 'cyber security'] },
   { name: 'IoT', aliases: ['iot', 'internet of things'] }
 ];
+let backendConnectionCache = { connected: null, checkedAt: 0 };
+
+// How long (ms) to wait for any backend request before treating it as offline.
+const BACKEND_REQUEST_TIMEOUT_MS = 8000;
+
+/**
+ * Make a request to the TalentLens FastAPI backend.
+ *
+ * - Always targets API_BASE (http://127.0.0.1:8000).
+ * - Aborts after BACKEND_REQUEST_TIMEOUT_MS and throws BACKEND_NOT_RUNNING_MESSAGE.
+ * - Treats network failures (TypeError / AbortError) as "backend offline".
+ * - Never falls back to client-side fake data on failure — always throws.
+ */
+async function apiRequest(path, options = {}) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), BACKEND_REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    // Try to parse JSON; return empty object on parse failure so we can still
+    // inspect response.ok and surface a meaningful error message.
+    const payload = await response.json().catch(() => ({}));
+    backendConnectionCache = { connected: true, checkedAt: Date.now() };
+    if (!response.ok) {
+      throw new Error(payload.detail || payload.message || `Backend returned ${response.status}.`);
+    }
+    return payload;
+  } catch (error) {
+    clearTimeout(timer);
+    // Network refusal, DNS failure, CORS preflight block, or our abort signal.
+    if (
+      error instanceof TypeError ||
+      (error && error.name === 'AbortError')
+    ) {
+      backendConnectionCache = { connected: false, checkedAt: Date.now() };
+      throw new Error(BACKEND_NOT_RUNNING_MESSAGE);
+    }
+    // HTTP error thrown above — don't mark backend as offline, just re-throw.
+    throw error;
+  }
+}
+
+async function checkBackendConnection(force = false) {
+  const ageMs = Date.now() - backendConnectionCache.checkedAt;
+  // Use cache when fresh and not forced — avoids hammering the server on every nav render.
+  if (!force && backendConnectionCache.connected !== null && ageMs < 15000) {
+    return backendConnectionCache.connected;
+  }
+  try {
+    // Use a shorter abort timeout for the health check so the status pill
+    // updates quickly even on a slow machine.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 4000);
+    const response = await fetch(`${API_BASE}/health`, { signal: controller.signal });
+    clearTimeout(timer);
+    const connected = response.ok;
+    backendConnectionCache = { connected, checkedAt: Date.now() };
+    return connected;
+  } catch (_error) {
+    backendConnectionCache = { connected: false, checkedAt: Date.now() };
+    return false;
+  }
+}
+
+async function refreshBackendStatus(force = false) {
+  const nodes = document.querySelectorAll('#backendStatus');
+  if (!nodes.length) return;
+  const connected = await checkBackendConnection(force);
+  nodes.forEach(node => {
+    if (connected) {
+      node.textContent = 'Backend: Connected';
+      node.style.color = 'var(--green)';
+      node.style.borderColor = 'rgba(16,185,129,.25)';
+      node.style.background = 'rgba(16,185,129,.06)';
+    } else {
+      node.textContent = 'Backend: Offline';
+      node.style.color = 'var(--amber)';
+      node.style.borderColor = 'rgba(245,158,11,.35)';
+      node.style.background = 'rgba(245,158,11,.07)';
+    }
+  });
+}
+
+window.addEventListener('load', () => {
+  refreshBackendStatus(true);
+  window.setInterval(() => refreshBackendStatus(false), 30000);
+});
 
 function normalizeTextValue(value) {
   return String(value || '')
@@ -411,6 +507,8 @@ function normalizeStoredCandidate(candidate, source) {
   return {
     ...candidate,
     source: candidate.source || source,
+    backendRecord: candidate.backendRecord || candidate.candidate_record || null,
+    candidate_record: candidate.backendRecord || candidate.candidate_record || null,
     name: displayName,
     displayName,
     extractedName: name,
@@ -606,12 +704,39 @@ function saveTalentSearch(search) {
   localStorage.setItem(TALENTLENS_SEARCH_KEY, JSON.stringify(search));
 }
 
+function saveRankResults(search, payload) {
+  localStorage.setItem(TALENTLENS_RESULTS_KEY, JSON.stringify({
+    search,
+    results: (payload.results || []).map((candidate, index) => normalizeRankedCandidate(candidate, index)),
+    savedAt: Date.now()
+  }));
+}
+
 function getTalentSearch() {
   return JSON.parse(localStorage.getItem(TALENTLENS_SEARCH_KEY) || JSON.stringify({
     title: JD_MOCK.title,
     role: 'AI/ML Engineering',
     jd: JD_MOCK.responsibilities.join(' ')
   }));
+}
+
+function getSavedRankResults() {
+  const parsed = JSON.parse(localStorage.getItem(TALENTLENS_RESULTS_KEY) || '{"results":[]}');
+  return {
+    ...parsed,
+    results: Array.isArray(parsed.results) ? parsed.results.map((candidate, index) => normalizeRankedCandidate(candidate, index)) : []
+  };
+}
+
+function getRankedCandidateById(id) {
+  const target = String(id || '');
+  return getRankedCandidatesForActiveSearch().find(candidate => String(candidate.id) === target || String(candidate.candidate_id) === target) || null;
+}
+
+function getUserAddedCandidatesForBackend() {
+  return getCandidateDatabase()
+    .filter(candidate => candidate.source === 'User Added')
+    .map(candidate => candidate.backendRecord || candidate.candidate_record || buildBackendCandidateRecord(candidate));
 }
 
 function extractRoleSkills(search) {
@@ -622,6 +747,93 @@ function extractRoleSkills(search) {
   if (text.includes('data')) return ['Python','SQL','Machine Learning','Statistics'];
   if (text.includes('frontend') || text.includes('full stack')) return ['React','TypeScript','FastAPI','SQL'];
   return JD_MOCK.skills.must;
+}
+
+function normalizeRankedCandidate(candidate, index = 0) {
+  const normalized = {
+    ...candidate,
+    id: String(candidate.id || candidate.candidate_id || candidate.candidateId || `${index + 1}`),
+    candidate_id: String(candidate.candidate_id || candidate.id || candidate.candidateId || `${index + 1}`),
+    name: candidate.name || candidate.displayName || candidate.candidate_name || LOW_CONFIDENCE_LABEL,
+    displayName: candidate.name || candidate.displayName || candidate.candidate_name || LOW_CONFIDENCE_LABEL,
+    extractedName: candidate.extractedName || candidate.candidate_name || candidate.name || LOW_CONFIDENCE_LABEL,
+    initials: candidate.initials || initialsFromName(candidate.name || candidate.candidate_name || LOW_CONFIDENCE_LABEL),
+    role: candidate.role || candidate.profileLabel || candidate.profile_label || LOW_CONFIDENCE_LABEL,
+    profileLabel: candidate.profileLabel || candidate.profile_label || candidate.role || LOW_CONFIDENCE_LABEL,
+    profile_label: candidate.profile_label || candidate.profileLabel || candidate.role || LOW_CONFIDENCE_LABEL,
+    company: candidate.company || candidate.college || candidate.source || 'TalentLens',
+    location: candidate.location || 'India',
+    source: candidate.source || 'Built-In',
+    skills: normalizeSkillList(candidate.skills || []),
+    projects: normalizeTextList(candidate.projects || []),
+    certifications: normalizeTextList(candidate.certifications || []),
+    finalScore: Number(candidate.finalScore ?? candidate.final_score ?? 0),
+    technicalScore: Number(candidate.technicalScore ?? candidate.technical_fit_score ?? candidate.technical_score ?? 0),
+    experienceScore: Number(candidate.experienceScore ?? candidate.experience_score ?? 0),
+    careerConsistency: Number(candidate.careerConsistency ?? candidate.career_consistency_score ?? 0),
+    behavioralScore: Number(candidate.behavioralScore ?? candidate.behavioral_score ?? 0),
+    authenticityScore: Number(candidate.authenticityScore ?? candidate.authenticity_score ?? 0),
+    cognitiveTwinScore: Number(candidate.cognitiveTwinScore ?? candidate.recruiter_cognitive_twin_score ?? 0),
+    hiddenGemScore: Number(candidate.hiddenGemScore ?? candidate.hidden_gem_score ?? 0),
+    hiringConfidence: Number(candidate.hiringConfidence ?? candidate.hiring_confidence ?? 0),
+    experience: Number(candidate.experience ?? 0),
+    experienceSummary: candidate.experienceSummary || candidate.experience_summary || '',
+    education: candidate.education || LOW_CONFIDENCE_LABEL,
+    degree: candidate.degree || '',
+    college: candidate.college || '',
+    strengths: Array.isArray(candidate.strengths) ? candidate.strengths : normalizeTextList(candidate.candidate_strengths || []),
+    weaknesses: Array.isArray(candidate.weaknesses) ? candidate.weaknesses : normalizeTextList(candidate.candidate_risks || candidate.risks || []),
+    whyRanked: candidate.whyRanked || candidate.why_ranked || '',
+    recruiterReasoning: candidate.recruiterReasoning || candidate.recruiter_reasoning || '',
+    authenticityRisk: candidate.authenticityRisk || candidate.authenticity_risk || '',
+    riskLevel: normalizeRiskLevel(candidate.riskLevel || candidate.risk_level || 'Medium'),
+    hiddenGem: Boolean(candidate.hiddenGem ?? candidate.hidden_gem_flag),
+    growthPotential: Number(candidate.growthPotential ?? candidate.hiddenGemScore ?? candidate.hidden_gem_score ?? 0),
+    learningVelocity: Number(candidate.learningVelocity ?? candidate.hiddenGemScore ?? candidate.hidden_gem_score ?? 0),
+    technicalDepth: Number(candidate.technicalDepth ?? candidate.technicalScore ?? candidate.technical_fit_score ?? 0),
+    searchReason: candidate.searchReason || candidate.search_reason || '',
+    scoreBreakdown: candidate.scoreBreakdown || candidate.score_breakdown || {},
+    gradient: candidate.gradient || 'linear-gradient(135deg,#06b6d4,#8b5cf6)'
+  };
+  if (!normalized.hiringConfidence) normalized.hiringConfidence = getHiringConfidence(normalized);
+  if (!normalized.hiddenGemScore) normalized.hiddenGemScore = getHiddenGemScore(normalized);
+  if (!normalized.growthPotential) normalized.growthPotential = normalized.hiddenGemScore;
+  if (!normalized.learningVelocity) normalized.learningVelocity = normalized.hiddenGemScore;
+  if (!normalized.technicalDepth) normalized.technicalDepth = normalized.technicalScore;
+  return normalized;
+}
+
+function buildBackendCandidateRecord(candidate) {
+  return {
+    candidate_id: String(candidate.candidate_id || candidate.id || `USER_${Date.now()}`),
+    name: candidate.extractedName || candidate.candidate_name || candidate.name || LOW_CONFIDENCE_LABEL,
+    role: candidate.role || candidate.profileLabel || candidate.profile_label || LOW_CONFIDENCE_LABEL,
+    profile_label: candidate.profileLabel || candidate.profile_label || candidate.role || LOW_CONFIDENCE_LABEL,
+    company: candidate.company || '',
+    location: candidate.location || 'India',
+    education: candidate.education || '',
+    degree: candidate.degree || '',
+    college: candidate.college || '',
+    skills: normalizeSkillList(candidate.skills || []),
+    projects: normalizeTextList(candidate.projects || []),
+    certifications: normalizeTextList(candidate.certifications || []),
+    experience: Number(candidate.experience || 0),
+    experience_summary: candidate.experienceSummary || candidate.experience_summary || '',
+    email: candidate.email || '',
+    phone: candidate.phone || '',
+    linkedin: candidate.linkedin || '',
+    github: candidate.github || '',
+    resumeText: candidate.resumeText || '',
+    source: candidate.source || 'User Added',
+    redrob_signals: candidate.redrob_signals || {}
+  };
+}
+
+function normalizeRiskLevel(value) {
+  const clean = String(value || 'Medium').trim().toLowerCase();
+  if (clean === 'low') return 'Low';
+  if (clean === 'high') return 'High';
+  return 'Medium';
 }
 
 function rankCandidateForSearch(candidate, search) {
@@ -644,10 +856,41 @@ function rankCandidateForSearch(candidate, search) {
 }
 
 function getRankedCandidatesForActiveSearch() {
+  return getSavedRankResults().results;
+}
+
+async function analyzeSearchWithBackend(search) {
+  const payload = await apiRequest('/rank', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      job_description: search.jd || '',
+      top_k: 100,
+      candidates: getUserAddedCandidatesForBackend()
+    })
+  });
+  saveTalentSearch(search);
+  saveRankResults(search, payload);
+  return getRankedCandidatesForActiveSearch();
+}
+
+async function compareCandidatesWithBackend(candidateAId, candidateBId) {
   const search = getTalentSearch();
-  return getCandidateDatabase()
-    .map(candidate => rankCandidateForSearch(candidate, search))
-    .sort((a, b) => b.finalScore - a.finalScore || b.cognitiveTwinScore - a.cognitiveTwinScore);
+  const payload = await apiRequest('/compare', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      candidate_a_id: String(candidateAId || ''),
+      candidate_b_id: String(candidateBId || ''),
+      job_description: search.jd || '',
+      candidates: getUserAddedCandidatesForBackend()
+    })
+  });
+  return {
+    ...payload,
+    candidate_a: normalizeRankedCandidate(payload.candidate_a || {}, 0),
+    candidate_b: normalizeRankedCandidate(payload.candidate_b || {}, 1)
+  };
 }
 
 function addCandidateToDatabase(candidate) {
@@ -714,6 +957,8 @@ function addCandidateToDatabase(candidate) {
     college: normalizedCandidate.college || '',
     projects: normalizedCandidate.projects || [],
     certifications: normalizedCandidate.certifications || [],
+    backendRecord: normalizedCandidate.backendRecord || normalizedCandidate.candidate_record || buildBackendCandidateRecord(normalizedCandidate),
+    candidate_record: normalizedCandidate.backendRecord || normalizedCandidate.candidate_record || buildBackendCandidateRecord(normalizedCandidate),
     parsingConfidence: Number(normalizedCandidate.parsingConfidence || 0),
     resumeText,
     gradient: candidate.gradient || 'linear-gradient(135deg,#06b6d4,#8b5cf6)',
@@ -734,10 +979,16 @@ function deleteUserAddedCandidates(password) {
 }
 
 function getHiddenGemScore(candidate) {
+  if (candidate && candidate.hiddenGemScore != null && candidate.hiddenGemScore !== '') {
+    return Math.round(Number(candidate.hiddenGemScore) || 0);
+  }
   return Math.round(Math.min(100, (candidate.growthPotential || 70) * 0.35 + (candidate.learningVelocity || 70) * 0.25 + (candidate.technicalScore || 70) * 0.20 + (candidate.behavioralScore || 70) * 0.12 + Math.max(0, 100 - (candidate.experience || 0) * 8) * 0.08));
 }
 
 function getHiringConfidence(candidate) {
+  if (candidate && candidate.hiringConfidence != null && candidate.hiringConfidence !== '') {
+    return Math.round(Number(candidate.hiringConfidence) || 0);
+  }
   return Math.round(Math.min(100, (candidate.authenticityScore || 70) * 0.32 + (candidate.careerConsistency || 70) * 0.24 + (candidate.behavioralScore || 70) * 0.20 + (candidate.technicalScore || 70) * 0.16 + ((candidate.skills || []).length >= 5 ? 8 : 2)));
 }
 
@@ -763,6 +1014,7 @@ function getHiddenGemReason(candidate) {
 }
 
 function getExecutiveSummary(candidate) {
+  if (candidate && candidate.executiveSummary) return candidate.executiveSummary;
   const decision = getRecruiterDecision(candidate).toLowerCase();
   const confidence = getConfidenceLevel(getHiringConfidence(candidate)).toLowerCase();
   const concern = (candidate.weaknesses || [])[0] || 'limited additional verification detail';
@@ -782,20 +1034,20 @@ function getNameSimilarity(a, b) {
 }
 
 async function parseCandidateWithBackend(file) {
-  try {
-    const formData = new FormData();
-    formData.append('file', file, file.name);
-    const response = await fetch(BACKEND_UPLOAD_ENDPOINT, {
-      method: 'POST',
-      body: formData
-    });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(payload.detail || payload.message || 'Unable to parse uploaded document.');
-    return payload && payload.candidate_profile ? payload.candidate_profile : null;
-  } catch (error) {
-    if (error instanceof TypeError) return null;
-    throw error;
+  const formData = new FormData();
+  formData.append('file', file, file.name);
+  const payload = await apiRequest('/upload-candidate', {
+    method: 'POST',
+    body: formData
+  });
+  if (!payload || !payload.candidate_profile) {
+    throw new Error('Unable to parse uploaded document.');
   }
+  return {
+    ...payload.candidate_profile,
+    backendRecord: payload.candidate_record || null,
+    candidate_record: payload.candidate_record || null
+  };
 }
 
 async function extractTextFromUpload(file, buffer) {
@@ -1054,27 +1306,16 @@ function generateCandidateIntelligence(candidate) {
 }
 
 async function importCandidateFile(file, onDone) {
-  const reader = new FileReader();
-  reader.onload = async () => {
-    try {
-      const buffer = reader.result;
-      let candidate = await parseCandidateWithBackend(file);
-      if (!candidate) {
-        const text = await extractTextFromUpload(file, buffer);
-        candidate = file.name.toLowerCase().endsWith('.json')
-          ? parseCandidateJsonUpload(text)
-          : { ...extractCandidateProfileFromText(text), resumeText: text };
-      }
-      if (!hasExtractedCandidateEvidence(candidate)) {
-        throw new Error('Could not create a reliable candidate profile from the uploaded document.');
-      }
-      const result = addCandidateToDatabase(candidate);
-      if (onDone) onDone(result);
-    } catch (error) {
-      if (onDone) onDone({ added: false, error: error.message || 'Unable to parse uploaded document.' });
+  try {
+    const candidate = await parseCandidateWithBackend(file);
+    if (!hasExtractedCandidateEvidence(candidate)) {
+      throw new Error('Could not create a reliable candidate profile from the uploaded document.');
     }
-  };
-  reader.readAsArrayBuffer(file);
+    const result = addCandidateToDatabase(candidate);
+    if (onDone) onDone(result);
+  } catch (error) {
+    if (onDone) onDone({ added: false, error: error.message || 'Unable to parse uploaded document.' });
+  }
 }
 
 function hasExtractedCandidateEvidence(candidate) {

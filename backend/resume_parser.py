@@ -36,55 +36,64 @@ except Exception:  # pragma: no cover
 
 
 SKILL_LIBRARY: list[tuple[str, tuple[str, ...]]] = [
-    ("Python", ("python",)),
-    ("Java", ("java",)),
-    ("JavaScript", ("javascript", " js ")),
-    ("TypeScript", ("typescript", " ts ")),
-    ("React", ("react",)),
-    ("Node.js", ("node.js", "nodejs", " node ")),
-    ("Express", ("express", "express.js")),
-    ("FastAPI", ("fastapi",)),
-    ("Flask", ("flask",)),
-    ("Django", ("django",)),
-    ("HTML", ("html",)),
-    ("CSS", ("css",)),
-    ("Tailwind", ("tailwind", "tailwindcss")),
-    ("Vite", ("vite",)),
-    ("SQL", ("sql",)),
-    ("MongoDB", ("mongodb", "mongo db")),
-    ("Supabase", ("supabase",)),
-    ("Firebase", ("firebase",)),
-    ("PostgreSQL", ("postgresql", "postgres")),
-    ("MySQL", ("mysql",)),
-    ("Machine Learning", ("machine learning", " ml ", "ml models")),
-    ("Deep Learning", ("deep learning",)),
-    ("NLP", ("nlp", "natural language processing")),
-    ("Computer Vision", ("computer vision",)),
-    ("LLMs", (" llm", "llms", "large language model", "genai")),
-    ("RAG", (" rag", "retrieval augmented generation")),
-    ("Sentence Transformers", ("sentence transformers", "sentence-transformers")),
-    ("FAISS", ("faiss", "vector search", "semantic search")),
-    ("LangChain", ("langchain",)),
-    ("PyTorch", ("pytorch",)),
-    ("TensorFlow", ("tensorflow",)),
-    ("Pandas", ("pandas",)),
-    ("NumPy", ("numpy",)),
-    ("Scikit-learn", ("scikit-learn", "sklearn")),
-    ("GCP", ("gcp", "google cloud")),
-    ("Azure", ("azure",)),
-    ("AWS", ("aws", "amazon web services")),
-    ("Docker", ("docker",)),
-    ("Git", (" git ",)),
-    ("GitHub", ("github",)),
-    ("REST API", ("rest api", "restful api", "api development")),
-    ("Data Analysis", ("data analysis", "analytics")),
-    ("Spark", ("spark", "apache spark")),
-    ("Airflow", ("airflow",)),
-    ("ETL", ("etl",)),
-    ("Prompt Engineering", ("prompt engineering",)),
-    ("Vector DB", ("vector db", "vector database")),
-    ("Cybersecurity", ("cybersecurity", "cyber security")),
-    ("IoT", ("iot", "internet of things")),
+    # ── Languages ────────────────────────────────────────────────────────────
+    ("Python",               ("python",)),
+    ("Java",                 ("java",)),
+    ("JavaScript",           ("javascript",)),
+    ("TypeScript",           ("typescript",)),
+    # ── Frontend ─────────────────────────────────────────────────────────────
+    ("React",                ("react",)),
+    ("Node.js",              ("node.js", "nodejs")),
+    ("Express",              ("express", "express.js", "expressjs")),
+    ("FastAPI",              ("fastapi",)),
+    ("Flask",                ("flask",)),
+    ("Django",               ("django",)),
+    ("HTML",                 ("html",)),
+    ("CSS",                  ("css",)),
+    ("Tailwind",             ("tailwind", "tailwindcss")),
+    ("Vite",                 ("vite",)),
+    # ── Databases ────────────────────────────────────────────────────────────
+    ("SQL",                  ("sql",)),
+    ("MongoDB",              ("mongodb",)),
+    ("Supabase",             ("supabase",)),
+    ("Firebase",             ("firebase",)),
+    ("PostgreSQL",           ("postgresql", "postgres")),
+    ("MySQL",                ("mysql",)),
+    # ── ML / AI core ─────────────────────────────────────────────────────────
+    ("Machine Learning",     ("machine learning",)),
+    ("Deep Learning",        ("deep learning",)),
+    ("NLP",                  ("nlp", "natural language processing")),
+    ("Computer Vision",      ("computer vision",)),
+    ("LLMs",                 ("llms", "llm", "large language model",
+                               "large language models", "genai")),
+    ("RAG",                  ("rag", "retrieval augmented generation",
+                               "retrieval-augmented generation")),
+    ("Sentence Transformers",("sentence transformers", "sentence-transformers")),
+    ("FAISS",                ("faiss",)),
+    ("LangChain",            ("langchain",)),
+    ("PyTorch",              ("pytorch",)),
+    ("TensorFlow",           ("tensorflow",)),
+    ("Pandas",               ("pandas",)),
+    ("NumPy",                ("numpy",)),
+    ("Scikit-learn",         ("scikit-learn", "sklearn")),
+    # ── Cloud / DevOps ───────────────────────────────────────────────────────
+    ("GCP",                  ("gcp", "google cloud")),
+    ("Azure",                ("azure",)),
+    ("AWS",                  ("aws", "amazon web services")),
+    ("Docker",               ("docker",)),
+    # ── Version control — GitHub before Git so both are caught independently ─
+    ("GitHub",               ("github",)),
+    ("Git",                  ("git",)),
+    # ── APIs / Data ──────────────────────────────────────────────────────────
+    ("REST API",             ("rest api", "restful api", "api development")),
+    ("Data Analysis",        ("data analysis",)),
+    ("Spark",                ("spark", "apache spark")),
+    ("Airflow",              ("airflow",)),
+    ("ETL",                  ("etl",)),
+    ("Prompt Engineering",   ("prompt engineering",)),
+    ("Vector DB",            ("vector db", "vector database")),
+    ("Cybersecurity",        ("cybersecurity", "cyber security")),
+    ("IoT",                  ("iot", "internet of things")),
 ]
 
 SECTION_HEADERS = {
@@ -101,81 +110,327 @@ SECTION_HEADERS = {
     "resume",
     "stream",
     "objective",
+    "achievements",
+    "achievement",
+    "references",
+    "declaration",
+    "languages",
+    "hobbies",
+    "interests",
 }
 
-NAME_NOISE = {
-    "skills",
-    "education",
-    "projects",
-    "experience",
-    "summary",
-    "certifications",
-    "contact",
-    "stream",
-    "resume",
-    "profile",
-    "python",
-    "sql",
-    "rag",
-    "git",
-    "fastapi",
-    "react",
-    "machine",
-    "learning",
-    "ai",
-    "ml",
-}
+NAME_NOISE: frozenset[str] = frozenset({
+    # ── Section headers ──────────────────────────────────────────────────────
+    "skills", "skill", "education", "projects", "project", "experience",
+    "certifications", "certification", "contact", "summary", "profile",
+    "resume", "stream", "objective", "achievements", "achievement",
+    "references", "declaration", "languages", "hobbies", "interests",
+    # ── Generic document words that appear at the top of resumes ─────────────
+    "curriculum", "vitae", "cv", "bio", "about",
+    # ── Tech / tool words that look like capitalized names ([A-Z][a-z]+) ─────
+    "python", "java", "javascript", "typescript", "react", "express",
+    "fastapi", "flask", "django", "html", "css", "tailwind", "vite",
+    "sql", "mongodb", "supabase", "firebase", "postgresql", "mysql",
+    "machine", "learning", "deep", "nlp", "faiss", "langchain",
+    "pytorch", "tensorflow", "pandas", "numpy", "sklearn", "scikit",
+    "gcp", "azure", "aws", "docker", "git", "github", "gitlab",
+    "spark", "airflow", "airlow", "analytics", "tableau", "excel",
+    "kubernetes", "terraform", "prometheus", "grafana", "jenkins",
+    "android", "ios", "swift", "kotlin", "golang", "rust", "scala",
+    "redis", "elasticsearch", "kafka", "hadoop", "dbt", "snowflake",
+    "oracle", "sqlite", "cassandra", "dynamodb",
+    # ── Common single-word labels that must never be treated as a name ───────
+    "developer", "engineer", "analyst", "scientist", "designer",
+    "intern", "consultant", "manager", "researcher", "associate",
+    "student", "undergraduate", "graduate", "trainee", "fresher",
+    # ── Abbreviations that pass [A-Z] pattern ────────────────────────────────
+    "ai", "ml", "rag", "nlp", "api", "ui", "ux", "hr", "cto", "ceo",
+    "ms", "bs", "be", "me",
+})
 
 
 @dataclass
 class ParsedResume:
     text: str
     candidate_profile: dict[str, Any]
+    extraction_log: list[str] = None  # type: ignore[assignment]
+
+    def __post_init__(self) -> None:
+        if self.extraction_log is None:
+            self.extraction_log = []
+
+
+# Minimum character count for extracted text to be considered usable.
+# Anything shorter is likely a scanned/image-only file or a corrupt extraction.
+_MIN_RESUME_TEXT_LENGTH = 80
+
+
+def debug_extraction(filename: str, payload: bytes) -> None:
+    """Print raw extraction diagnostics for a resume file.
+
+    Intended for development and debugging. Prints the raw text length
+    returned by each extraction backend before any parsing occurs so you
+    can see exactly what the parser will receive.
+
+    Usage (from project root)::
+
+        python -c "
+        from backend.resume_parser import debug_extraction
+        debug_extraction('resume.pdf', open('resume.pdf','rb').read())
+        "
+    """
+    suffix = filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
+    print(f"[debug_extraction] file={filename!r}  size={len(payload)} bytes  suffix={suffix!r}")
+
+    if suffix == "pdf":
+        # PyMuPDF
+        if fitz is not None:
+            chunks: list[str] = []
+            try:
+                with fitz.open(stream=payload, filetype="pdf") as doc:
+                    chunks = [page.get_text("text") for page in doc]
+                raw = "\n".join(chunks)
+                print(f"  PyMuPDF   : {len(raw)} chars across {len(chunks)} page(s)")
+                if raw.strip():
+                    print(f"  PyMuPDF preview: {raw[:120]!r}")
+            except Exception as exc:
+                print(f"  PyMuPDF   : ERROR — {exc}")
+        else:
+            print("  PyMuPDF   : not installed")
+
+        # pdfplumber fallback
+        if pdfplumber is not None:
+            parts: list[str] = []
+            try:
+                with pdfplumber.open(io.BytesIO(payload)) as doc:
+                    parts = [(page.extract_text() or "") for page in doc.pages]
+                raw2 = "\n".join(parts)
+                print(f"  pdfplumber: {len(raw2)} chars across {len(parts)} page(s)")
+                if raw2.strip():
+                    print(f"  pdfplumber preview: {raw2[:120]!r}")
+            except Exception as exc:
+                print(f"  pdfplumber: ERROR — {exc}")
+        else:
+            print("  pdfplumber: not installed")
+
+    elif suffix == "docx":
+        if Document is not None:
+            try:
+                doc = Document(io.BytesIO(payload))
+                paragraphs = [p.text for p in doc.paragraphs]
+                table_cells: list[str] = []
+                for table in doc.tables:
+                    for row in table.rows:
+                        table_cells.append(" ".join(c.text for c in row.cells))
+                raw = normalize_resume_text("\n".join(paragraphs + table_cells))
+                print(f"  python-docx: {len(raw)} chars, "
+                      f"{len(paragraphs)} paragraph(s), "
+                      f"{len(table_cells)} table-row(s)")
+                if raw.strip():
+                    print(f"  python-docx preview: {raw[:120]!r}")
+            except Exception as exc:
+                print(f"  python-docx: ERROR — {exc}")
+        else:
+            print("  python-docx: not installed")
+
+    elif suffix == "json":
+        try:
+            decoded = payload.decode("utf-8")
+            print(f"  JSON: {len(decoded)} chars")
+            print(f"  JSON preview: {decoded[:120]!r}")
+        except Exception as exc:
+            print(f"  JSON decode ERROR — {exc}")
+
+    else:
+        print(f"  Unsupported suffix: {suffix!r}")
 
 
 def parse_uploaded_candidate(filename: str, payload: bytes) -> ParsedResume:
+    """Parse an uploaded resume file and return a ``ParsedResume``.
+
+    Extraction order
+    ----------------
+    PDF  → PyMuPDF first, pdfplumber fallback if PyMuPDF yields empty text.
+    DOCX → python-docx.
+    JSON → direct JSON parse.
+    Image → pytesseract OCR.
+
+    Raises ``ValueError`` with a clear human-readable message (never creates
+    a fake candidate profile) when:
+    - the extracted text is empty,
+    - the extracted text is shorter than ``_MIN_RESUME_TEXT_LENGTH`` chars,
+    - a required library is not installed,
+    - a corrupt file causes an exception during extraction.
+    """
     suffix = filename.lower().rsplit(".", 1)[-1] if "." in filename else ""
+    log: list[str] = []
+
     if suffix == "json":
         profile = parse_candidate_json(payload.decode("utf-8"))
-        return ParsedResume(text=profile.get("resumeText", ""), candidate_profile=profile)
+        return ParsedResume(
+            text=profile.get("resumeText", ""),
+            candidate_profile=profile,
+            extraction_log=["JSON parsed directly from structured fields."],
+        )
+
     if suffix == "pdf":
-        text = extract_pdf_text(payload)
-        if not text.strip():
-            raise ValueError("Could not extract text from PDF.")
-        return ParsedResume(text=text, candidate_profile=parse_candidate_text(text))
+        text, log = _extract_pdf_text_with_log(payload)
+        _assert_usable_text(text, "PDF", log)
+        return ParsedResume(text=text, candidate_profile=parse_candidate_text(text),
+                            extraction_log=log)
+
     if suffix == "docx":
-        text = extract_docx_text(payload)
-        if not text.strip():
-            raise ValueError("Could not extract text from DOCX.")
-        return ParsedResume(text=text, candidate_profile=parse_candidate_text(text))
+        text, log = _extract_docx_text_with_log(payload)
+        _assert_usable_text(text, "DOCX", log)
+        return ParsedResume(text=text, candidate_profile=parse_candidate_text(text),
+                            extraction_log=log)
+
     if suffix in {"png", "jpg", "jpeg", "webp"}:
         text = extract_image_text(payload)
+        log = [f"Image OCR extracted {len(text)} chars."]
         if not text.strip():
-            raise ValueError("Image parsing requires OCR support.")
-        return ParsedResume(text=text, candidate_profile=parse_candidate_text(text))
-    raise ValueError("Unsupported file type. Use JSON, PDF, DOCX, or image.")
+            raise ValueError(
+                "Unable to extract text from this image. "
+                "Ensure the image is clear and contains readable text, "
+                "or upload a PDF/DOCX/JSON instead."
+            )
+        _assert_usable_text(text, "image", log)
+        return ParsedResume(text=text, candidate_profile=parse_candidate_text(text),
+                            extraction_log=log)
 
+    raise ValueError(
+        f"Unsupported file type '.{suffix}'. "
+        "Please upload a PDF, DOCX, or JSON resume."
+    )
+
+
+def _extract_pdf_text_with_log(payload: bytes) -> tuple[str, list[str]]:
+    """Extract text from a PDF payload, trying PyMuPDF then pdfplumber.
+
+    Returns ``(text, log)`` where *log* records which backend was used and
+    how many characters were extracted. Never raises — extraction errors are
+    recorded in *log* and an empty string is returned so the caller can
+    raise a clean ``ValueError`` via ``_assert_usable_text``.
+    """
+    log: list[str] = []
+
+    # ── Pass 1: PyMuPDF ───────────────────────────────────────────────────────
+    if fitz is not None:
+        try:
+            chunks: list[str] = []
+            with fitz.open(stream=payload, filetype="pdf") as doc:
+                for page in doc:
+                    chunks.append(page.get_text("text"))
+            text = normalize_resume_text("\n".join(chunks))
+            log.append(
+                f"PyMuPDF: extracted {len(text)} chars from {len(chunks)} page(s)."
+            )
+            if text.strip():
+                return text, log
+            log.append("PyMuPDF returned empty text — trying pdfplumber fallback.")
+        except Exception as exc:
+            log.append(f"PyMuPDF error: {exc} — trying pdfplumber fallback.")
+    else:
+        log.append("PyMuPDF (fitz) not installed — trying pdfplumber.")
+
+    # ── Pass 2: pdfplumber fallback ───────────────────────────────────────────
+    if pdfplumber is not None:
+        try:
+            parts: list[str] = []
+            with pdfplumber.open(io.BytesIO(payload)) as doc:
+                for page in doc.pages:
+                    parts.append(page.extract_text() or "")
+            text = normalize_resume_text("\n".join(parts))
+            log.append(
+                f"pdfplumber: extracted {len(text)} chars from {len(parts)} page(s)."
+            )
+            return text, log
+        except Exception as exc:
+            log.append(f"pdfplumber error: {exc}")
+    else:
+        log.append("pdfplumber not installed.")
+
+    log.append("All PDF extraction backends failed or returned empty text.")
+    return "", log
+
+
+def _extract_docx_text_with_log(payload: bytes) -> tuple[str, list[str]]:
+    """Extract text from a DOCX payload using python-docx.
+
+    Returns ``(text, log)``. Handles corrupt files gracefully — errors are
+    recorded in *log* rather than propagating as unhandled exceptions.
+    """
+    log: list[str] = []
+
+    if Document is None:
+        log.append(
+            "python-docx is not installed. "
+            "Install it with: pip install python-docx"
+        )
+        return "", log
+
+    try:
+        doc = Document(io.BytesIO(payload))
+        paragraphs = [p.text for p in doc.paragraphs]
+        table_cells: list[str] = []
+        for table in doc.tables:
+            for row in table.rows:
+                table_cells.append(" ".join(cell.text for cell in row.cells))
+        text = normalize_resume_text("\n".join(paragraphs + table_cells))
+        log.append(
+            f"python-docx: extracted {len(text)} chars from "
+            f"{len(paragraphs)} paragraph(s) and "
+            f"{len(table_cells)} table-row(s)."
+        )
+        return text, log
+    except Exception as exc:
+        log.append(f"python-docx error: {exc}")
+        return "", log
+
+
+def _assert_usable_text(text: str, file_type: str, log: list[str]) -> None:
+    """Raise ``ValueError`` when extracted *text* is too short to be useful.
+
+    This is the single gate that prevents fake candidate profiles from being
+    created from empty or near-empty extractions (e.g. scanned image PDFs,
+    password-protected files, corrupt uploads).
+    """
+    char_count = len(text.strip())
+    if char_count == 0:
+        detail = " | ".join(log) if log else "no extraction log available"
+        raise ValueError(
+            f"Unable to extract any text from the uploaded {file_type}. "
+            "The file may be scanned/image-only, password-protected, or corrupt. "
+            "Please upload a text-based PDF, DOCX, or JSON instead. "
+            f"[extraction log: {detail}]"
+        )
+    if char_count < _MIN_RESUME_TEXT_LENGTH:
+        detail = " | ".join(log) if log else "no extraction log available"
+        raise ValueError(
+            f"Extracted text from {file_type} is too short to parse reliably "
+            f"({char_count} chars, minimum {_MIN_RESUME_TEXT_LENGTH}). "
+            "The file may be partially scanned, corrupt, or nearly empty. "
+            "Please upload a clearer PDF/DOCX/JSON. "
+            f"[extraction log: {detail}]"
+        )
+
+
+# ── Kept as public helpers for backwards compatibility and direct callers ─────
 
 def extract_pdf_text(payload: bytes) -> str:
-    chunks: list[str] = []
-    if fitz is not None:
-        with fitz.open(stream=payload, filetype="pdf") as document:
-            chunks.extend(page.get_text("text") for page in document)
-    if not "".join(chunks).strip() and pdfplumber is not None:
-        with pdfplumber.open(io.BytesIO(payload)) as document:
-            chunks.extend((page.extract_text() or "") for page in document.pages)
-    return normalize_resume_text("\n".join(chunks))
+    """Public wrapper — returns extracted text or empty string.
+
+    Prefer ``_extract_pdf_text_with_log`` internally so callers get the
+    extraction log. This function is retained for external callers and tests.
+    """
+    text, _ = _extract_pdf_text_with_log(payload)
+    return text
 
 
 def extract_docx_text(payload: bytes) -> str:
-    if Document is None:
-        return ""
-    document = Document(io.BytesIO(payload))
-    parts = [paragraph.text for paragraph in document.paragraphs]
-    for table in document.tables:
-        for row in table.rows:
-            parts.append(" ".join(cell.text for cell in row.cells))
-    return normalize_resume_text("\n".join(parts))
+    """Public wrapper — returns extracted text or empty string."""
+    text, _ = _extract_docx_text_with_log(payload)
+    return text
 
 
 def extract_image_text(payload: bytes) -> str:
@@ -187,6 +442,12 @@ def extract_image_text(payload: bytes) -> str:
 
 def parse_candidate_json(text: str) -> dict[str, Any]:
     parsed = json.loads(text)
+    if isinstance(parsed, list):
+        parsed = next((item for item in parsed if isinstance(item, dict)), None)
+        if parsed is None:
+            raise ValueError("Uploaded JSON must contain at least one candidate object.")
+    if not isinstance(parsed, dict):
+        raise ValueError("Uploaded JSON must be a candidate object.")
     profile = parsed.get("profile") if isinstance(parsed, dict) and isinstance(parsed.get("profile"), dict) else parsed
     skills = normalize_skills((parsed.get("skills") if isinstance(parsed, dict) else None) or profile.get("skills") or [])
     projects = normalize_list((parsed.get("projects") if isinstance(parsed, dict) else None) or profile.get("projects") or [])
@@ -202,13 +463,19 @@ def parse_candidate_json(text: str) -> dict[str, Any]:
     candidate_name = pick_name_from_value(
         profile.get("name") or profile.get("full_name") or (parsed.get("name") if isinstance(parsed, dict) else "")
     ) or "Candidate Profile"
-    confidence = compute_confidence(candidate_name, skills, projects, degree, college, bool(profile.get("email")), bool(profile.get("phone")))
+    display_role = profile_label if (profile_label and not _is_forbidden_label(profile_label)) else role
+    confidence = compute_confidence(
+        candidate_name, skills, projects, degree, college,
+        bool(profile.get("email")), bool(profile.get("phone")),
+        bool(profile.get("linkedin") or profile.get("linkedin_url")),
+        bool(profile.get("github") or profile.get("github_url")),
+    )
     return {
         "candidate_id": f"USER_{int(time.time() * 1000)}",
         "name": candidate_name,
         "candidate_name": candidate_name,
         "profile_label": profile_label,
-        "role": role or profile_label or "Candidate Profile",
+        "role": display_role,
         "education": education,
         "college": college,
         "degree": degree,
@@ -243,13 +510,22 @@ def parse_candidate_text(text: str) -> dict[str, Any]:
     github_match = re.search(r"(?:https?://)?(?:www\.)?github\.com/[^\s)]+", cleaned, re.I)
     experience_summary = build_experience_summary(cleaned, projects, experience, role, degree)
     profile_label = build_profile_label(role, degree, experience_summary)
-    confidence = compute_confidence(candidate_name, skills, projects, degree, college, bool(email_match), bool(phone_match))
+
+    # The `role` field shown in cards must never be a placeholder.
+    # Use profile_label as the display role when it's more meaningful.
+    display_role = profile_label if (profile_label and not _is_forbidden_label(profile_label)) else role
+
+    confidence = compute_confidence(
+        candidate_name, skills, projects, degree, college,
+        bool(email_match), bool(phone_match),
+        bool(linkedin_match), bool(github_match),
+    )
     return {
         "candidate_id": f"USER_{int(time.time() * 1000)}",
         "name": candidate_name,
         "candidate_name": candidate_name,
         "profile_label": profile_label,
-        "role": profile_label if profile_label and "Student" in profile_label else role,
+        "role": display_role,
         "education": education or "Candidate Profile",
         "college": college,
         "degree": degree,
@@ -299,41 +575,125 @@ def normalize_skills(value: Any) -> list[str]:
     return extract_skills(text)
 
 
+def clean_name(value: Any) -> str:
+    """Strip non-name characters and collapse whitespace."""
+    return re.sub(r"\s+", " ", re.sub(r"[^A-Za-z .'-]", " ", str(value or ""))).strip()
+
+
 def pick_name_from_value(value: Any) -> str:
+    """Validate and return a name string from a structured field value.
+
+    Used when the name comes from a JSON ``name`` field rather than free text.
+    Applies the same token rules as ``pick_candidate_name`` to reject
+    tech words, section headers, and single-token values.
+    """
     clean = clean_name(value)
     tokens = clean.split()
-    if 2 <= len(tokens) <= 4 and all(is_name_token(token) for token in tokens):
+    if (
+        2 <= len(tokens) <= 4
+        and all(is_name_token(t) for t in tokens)
+        and any(len(t.rstrip(".")) > 1 for t in tokens)
+    ):
         return clean
     return ""
 
 
+def is_name_token(token: str) -> bool:
+    """Return True when *token* could be part of a human name.
+
+    Acceptance criteria (all must hold):
+    - After stripping a trailing dot (initial like "M."), the remaining string
+      matches ``[A-Z][a-z]+`` (capitalized word) or ``[A-Z]`` (single initial).
+    - The lowercase form must NOT be in NAME_NOISE (blocks tech/section words).
+
+    Examples that pass : "Shirley", "S", "Nair", "Kumar", "M"
+    Examples that fail  : "Python", "Docker", "Azure", "AI", "ML", "GitHub"
+    """
+    # Strip a single trailing period (handles initials like "M.")
+    stripped = token.rstrip(".")
+    if not stripped:
+        return False
+    if stripped.lower() in NAME_NOISE:
+        return False
+    return bool(re.fullmatch(r"[A-Z][a-z]+|[A-Z]", stripped))
+
+
 def pick_candidate_name(lines: list[str], text: str) -> str:
-    labeled = re.search(r"(?:candidate\s+name|full\s+name|name)\s*[:\-]\s*([A-Za-z][A-Za-z .'-]{1,60})", text, re.I)
+    """Extract the candidate name from the top of a resume.
+
+    Strategy
+    --------
+    1. Labeled line first: ``Name: Shirley S`` / ``Full Name: Priya Nair``
+       (case-insensitive, colon or dash separator).
+    2. Scan the first 5 non-empty lines for a plausible name:
+       - Strip inline contact noise (email, phone, linkedin, github, cgpa).
+       - Strip degree keywords that sometimes follow the name on the same line.
+       - Accept 2–4 tokens where every token passes ``is_name_token``.
+       - Require at least one full word (not just an initial) for confidence.
+       - Skip lines containing digits, @ signs, or URLs.
+       - Skip recognised section headers.
+    3. Return ``""`` (caller substitutes "Candidate Profile") if nothing found.
+
+    Never uses the filename or any placeholder string as the name.
+    """
+    # ── Pass 1: labeled "Name:" line anywhere in the resume ──────────────────
+    labeled = re.search(
+        r"(?:candidate\s+name|full\s+name|name)\s*[:\-]\s*([A-Za-z][A-Za-z .''-]{1,60})",
+        text,
+        re.I,
+    )
     if labeled:
-        candidate = pick_name_from_value(labeled.group(1))
-        if candidate:
-            return candidate
+        raw = labeled.group(1).split("\n")[0].strip()
+        tokens = clean_name(raw).split()
+        if (
+            2 <= len(tokens) <= 4
+            and all(is_name_token(t) for t in tokens)
+            and any(len(t.rstrip(".")) > 1 for t in tokens)
+        ):
+            return clean_name(raw)
+
+    # ── Pass 2: first 5 non-empty lines ──────────────────────────────────────
     for line in lines[:5]:
-        clean = clean_name(re.sub(r"\b(email|phone|linkedin|github)\b.*$", "", line, flags=re.I))
-        tokens = clean.split()
-        if not clean or len(clean) > 48 or re.search(r"\d|@|https?://", line):
+        # Remove inline contact fields that may appear on the same line
+        clean = re.sub(
+            r"\b(email|phone|mobile|tel|linkedin|github|cgpa|gpa|percentage)\b.*$",
+            "",
+            line,
+            flags=re.I,
+        )
+        # Remove degree keywords that sometimes appear directly after the name
+        clean = re.sub(
+            r"\b(b\.?\s?tech|b\.?\s?e\.?|m\.?\s?tech|m\.?\s?e\.?|msc|bsc|bca|mca"
+            r"|bachelor|master|phd)\b.*$",
+            "",
+            clean,
+            flags=re.I,
+        )
+        clean = clean_name(clean)
+
+        # Hard rejections
+        if not clean or len(clean) > 50:
+            continue
+        if re.search(r"\d|@|https?://|www\.", line):
             continue
         if is_section_header(clean):
             continue
-        if 2 <= len(tokens) <= 4 and all(is_name_token(token) for token in tokens):
-            return clean
+
+        tokens = clean.split()
+        if len(tokens) < 2 or len(tokens) > 4:
+            continue
+
+        # All tokens must look like name tokens
+        if not all(is_name_token(t) for t in tokens):
+            continue
+
+        # At least one full word (not just an initial) required
+        if not any(len(t.rstrip(".")) > 1 for t in tokens):
+            continue
+
+        return clean
+
     return ""
-
-
-def clean_name(value: Any) -> str:
-    return re.sub(r"\s+", " ", re.sub(r"[^A-Za-z .'-]", " ", str(value or ""))).strip()
-
-
-def is_name_token(token: str) -> bool:
-    cleaned = token.replace(".", "")
-    if cleaned.lower() in NAME_NOISE:
-        return False
-    return bool(re.fullmatch(r"[A-Z][a-z]+|[A-Z]", cleaned))
 
 
 def is_section_header(text: str) -> bool:
@@ -341,11 +701,34 @@ def is_section_header(text: str) -> bool:
 
 
 def extract_skills(text: str) -> list[str]:
-    lowered = f" {text.lower()} "
+    """Extract canonical skills from *text* using the controlled skill library.
+
+    Design
+    ------
+    - Each alias is matched as a whole-word / whole-phrase using ``\\b`` word
+      boundaries so that ``"rag"`` matches ``"RAG"`` but not ``"fragrant"``,
+      and ``"llm"`` matches ``"LLM"`` but not ``"llms"`` unless that alias is
+      also listed.
+    - Matching is case-insensitive.
+    - Multi-word aliases (e.g. ``"rest api"``) match anywhere in the text.
+    - Short all-caps tokens (``"sql"``, ``"rag"``, ``"llm"``, ``"git"``) are
+      common in skill lists separated by commas, newlines, or spaces — word
+      boundaries handle all of those correctly without fragile space padding.
+    - GitHub is listed before Git so both are detected independently;
+      ``"github"`` does *not* trigger ``"git"`` because ``\\bgit\\b`` won't
+      match inside ``"github"``.
+    - Duplicates are impossible because each canonical name appears once.
+    """
+    lowered = text.lower()
     found: list[str] = []
     for canonical, aliases in SKILL_LIBRARY:
-        if any(alias.lower() in lowered for alias in aliases):
-            found.append(canonical)
+        for alias in aliases:
+            # Build a word-boundary regex. Multi-word aliases (contain spaces
+            # or hyphens) use boundaries only at the outer edges.
+            pattern = r"\b" + re.escape(alias) + r"\b"
+            if re.search(pattern, lowered):
+                found.append(canonical)
+                break  # canonical matched — no need to check remaining aliases
     return found
 
 
@@ -398,31 +781,59 @@ def infer_experience_years(text: str, projects: list[str]) -> int:
 
 
 def infer_degree(text: str) -> str:
+    """Extract degree string including specialisation from resume text."""
     patterns = [
-        r"\b(B\.?\s?Tech|B\.?\s?E\.?|M\.?\s?Tech|M\.?\s?E\.?|BSc|B\.?\s?Sc|MSc|M\.?\s?Sc|MBA|BCA|MCA|PhD|MS|BS|BE|ME)\b[^\n,;]*",
-        r"\b(Bachelor of Technology|Master of Technology|Bachelor of Engineering|Master of Engineering)\b[^\n,;]*",
+        # Full spelled-out degree with possible specialisation
+        r"\b(Bachelor of Technology|Master of Technology|Bachelor of Engineering|Master of Engineering|Bachelor of Science|Master of Science)\b[^\n,;]{0,60}",
+        # Abbreviated form: B.Tech/M.Tech/B.E etc. with optional specialisation
+        r"\b(B\.?\s?Tech|B\.?\s?E\.?|M\.?\s?Tech|M\.?\s?E\.?|MSc|M\.?\s?Sc|BSc|B\.?\s?Sc|MBA|BCA|MCA|PhD|MS|BE|ME)\b[^\n,;]{0,60}",
     ]
     for pattern in patterns:
         match = re.search(pattern, text, re.I)
         if match:
-            return clean_role(match.group(0))
+            raw = match.group(0)
+            # Remove trailing noise (email, URL, CGPA)
+            raw = re.split(r"\s{2,}|\s*[|,]\s*", raw)[0]
+            result = clean_role(raw)
+            if result and len(result) > 2:
+                return result
     return ""
 
 
 def infer_college(text: str) -> str:
-    for line in [line.strip() for line in text.splitlines() if line.strip()]:
-        if re.search(r"(university|college|institute|school|iit|nit|iiit|bits|karunya)", line, re.I) and not is_section_header(line):
-            return clean_role(line)
-    match = re.search(r"(?:at|from|of)\s+([A-Z][A-Za-z&.,'() -]{2,80}(?:University|College|Institute|School|Campus)?)", text)
+    """Extract institution name from resume text.
+
+    Prefers lines that contain a known institution keyword. Falls back to
+    context-based extraction (at/from/of).
+    """
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    for line in lines:
+        if re.search(r"(university|college|institute|school|iit\b|nit\b|iiit\b|bits\b|karunya|anna\s+university|psg|pes\s+university)", line, re.I):
+            if not is_section_header(line):
+                # Remove any leading bullet or dash
+                cleaned = re.sub(r"^[-*•·]\s*", "", line).strip()
+                # Strip trailing contact-like content
+                cleaned = re.split(r"[|,;]", cleaned)[0].strip()
+                result = clean_role(cleaned)
+                if result and len(result) > 3:
+                    return result
+    # Fallback: look for "at/from/of <Institution>"
+    match = re.search(
+        r"(?:at|from|of)\s+([A-Z][A-Za-z&.,'()\- ]{2,80}(?:University|College|Institute|School|Campus|Sciences|Technology))",
+        text,
+    )
     return clean_role(match.group(1)) if match else ""
 
 
 def infer_role(text: str, skills: list[str]) -> str:
+    """Infer a role/headline from resume text."""
+    # Check for an explicit role/headline line in the first 8 lines
     headline = next(
         (
             line.strip()
             for line in text.splitlines()[:8]
-            if re.search(r"\b(engineer|developer|analyst|scientist|designer|intern|consultant|manager)\b", line, re.I)
+            if re.search(r"\b(engineer|developer|analyst|scientist|designer|intern|consultant|manager|researcher|associate)\b", line, re.I)
+            and not is_section_header(line.strip())
         ),
         "",
     )
@@ -454,34 +865,56 @@ def clean_role(value: Any) -> str:
 
 
 def degree_short_label(degree: str) -> str:
+    """Convert a full degree string to a short label like 'B.Tech CSE' or 'B.E CSE'.
+
+    Priority order for prefix detection is most-specific first so that
+    'B.Tech' is not accidentally matched as 'B.E' or vice-versa.
+    """
     if not degree:
         return ""
-    lowered = degree.lower()
-    if "bachelor of technology" in lowered or "b.tech" in lowered or "b tech" in lowered:
+    lowered = degree.lower().strip()
+
+    # ── Prefix detection (most-specific patterns first) ──────────────────────
+    if re.search(r"bachelor of technology|\bb\.?\s?tech\b|b tech\b", lowered):
         prefix = "B.Tech"
-    elif "bachelor of engineering" in lowered or "b.e" in lowered or lowered.startswith("be "):
-        prefix = "B.E"
-    elif "master of technology" in lowered or "m.tech" in lowered or "m tech" in lowered:
+    elif re.search(r"master of technology|\bm\.?\s?tech\b|m tech\b", lowered):
         prefix = "M.Tech"
-    elif "master of engineering" in lowered or "m.e" in lowered or lowered.startswith("me "):
+    elif re.search(r"bachelor of engineering|\bb\.?\s?e\.?\s(?:cse|cs|it|ai|ds|ece|eee|mech|\b)|^b\.?e\.?$", lowered):
+        prefix = "B.E"
+    elif re.search(r"master of engineering|\bm\.?\s?e\.?\s(?:cse|cs|it|ai|\b)|^m\.?e\.?$", lowered):
         prefix = "M.E"
-    elif "m.sc" in lowered or lowered.startswith("msc"):
+    elif re.search(r"\bm\.?\s?sc\b|^msc\b", lowered):
         prefix = "M.Sc"
-    elif "b.sc" in lowered or lowered.startswith("bsc"):
+    elif re.search(r"\bb\.?\s?sc\b|^bsc\b", lowered):
         prefix = "B.Sc"
+    elif re.search(r"\bmba\b", lowered):
+        prefix = "MBA"
+    elif re.search(r"\bphd\b|\bp\.?h\.?d\.?\b", lowered):
+        prefix = "PhD"
+    elif re.search(r"\bbca\b", lowered):
+        prefix = "BCA"
+    elif re.search(r"\bmca\b", lowered):
+        prefix = "MCA"
     else:
         return degree
 
+    # ── Specialisation suffix detection ──────────────────────────────────────
     if re.search(r"computer science and engineering|\bcse\b", lowered):
         suffix = " CSE"
-    elif re.search(r"computer science\b|\bcs\b", lowered):
+    elif re.search(r"computer science\b", lowered):
         suffix = " CS"
     elif re.search(r"information technology|\bit\b", lowered):
         suffix = " IT"
-    elif re.search(r"artificial intelligence", lowered):
+    elif re.search(r"artificial intelligence\b", lowered):
         suffix = " AI"
-    elif re.search(r"data science", lowered):
+    elif re.search(r"data science\b", lowered):
         suffix = " DS"
+    elif re.search(r"electronics and communication|\bece\b", lowered):
+        suffix = " ECE"
+    elif re.search(r"electrical engineering|\beee\b", lowered):
+        suffix = " EEE"
+    elif re.search(r"mechanical engineering|\bmech\b", lowered):
+        suffix = " Mech"
     else:
         suffix = ""
     return f"{prefix}{suffix}".strip()
@@ -495,32 +928,103 @@ def format_education(degree: str, college: str, fallback: str) -> str:
 
 
 def build_experience_summary(text: str, projects: list[str], experience: int, role: str, degree: str = "") -> str:
-    lowered = f"{role} {text} {degree}".lower()
+    """Build a human-readable experience summary string.
+
+    Rules:
+    - experience > 1 full years → "{n} years experience"
+    - internship signal + student degree/words → "Student / Intern Profile"
+    - internship signal alone (no student degree) → "Internship Experience"
+    - student degree/words + no experience → "Student / Intern Profile"
+    - experience == 1 year → "1 year experience"  (only if no internship/student signal)
+    - project evidence but no numeric years → "Experience evidence available"
+    - otherwise → "Candidate Profile"
+    """
+    combined = f"{role} {text} {degree}".lower()
     degree_lower = degree.lower()
-    is_student_degree = bool(re.search(r"(b\.tech|btech|bachelor of technology|bachelor of engineering|b\.e\b)", degree_lower))
-    has_student_words = bool(re.search(r"\b(student|undergraduate|graduate)\b", lowered))
-    has_internship = bool(re.search(r"\b(intern|internship|trainee|apprentice)\b", lowered))
-    if experience > 1:
+
+    is_student_degree = bool(re.search(
+        r"(b\.tech|btech|bachelor\s+of\s+technology|bachelor\s+of\s+engineering|b\.e\b)", degree_lower
+    ))
+    has_student_words = bool(re.search(r"\b(student|undergraduate|graduate)\b", combined))
+    has_internship = bool(re.search(r"\b(intern|internship|trainee|apprentice)\b", combined))
+
+    # Rule 1: Clear professional experience (> 1 year, not intern/student context)
+    if experience > 1 and not (has_student_words or is_student_degree):
         return f"{experience} year{'s' if experience != 1 else ''} experience"
+
+    # Rule 2: Internship + student context
     if has_internship:
         if has_student_words or is_student_degree:
             return "Student / Intern Profile"
         return "Internship Experience"
+
+    # Rule 3: Pure student profile (degree + no work experience)
     if has_student_words or (is_student_degree and experience == 0):
         return "Student / Intern Profile"
+
+    # Rule 4: B.Tech student with some experience years counted (project builds etc.)
+    if is_student_degree and experience <= 1:
+        return "Student / Intern Profile"
+
+    # Rule 5: Numeric experience on a non-student profile
     if experience > 0:
         return f"{experience} year{'s' if experience != 1 else ''} experience"
-    if re.search(r"\b(worked|developed|built|freelance|consultant|startup|maintained|deployed)\b", lowered) or projects:
+
+    # Rule 6: Project/work signals without clear years
+    if re.search(r"\b(worked|developed|built|freelance|consultant|startup|maintained|deployed)\b", combined) or projects:
         return "Experience evidence available"
+
     return "Candidate Profile"
 
 
+_FORBIDDEN_LABELS = frozenset({
+    "imported candidate",
+    "data candidate",
+    "uploaded candidate",
+    "resume profile",
+    "resume-based talent profile",
+    "not specified",
+    "stream",
+    "resume",
+    "filename",
+    "",
+})
+
+
+def _is_forbidden_label(value: str) -> bool:
+    """Return True if value is a placeholder/forbidden display label."""
+    return value.strip().lower() in _FORBIDDEN_LABELS
+
+
 def build_profile_label(role: str, degree: str, experience_summary: str) -> str:
+    """Build a human-readable, recruiter-facing profile label.
+
+    Rules (in priority order):
+    1. Student or intern profile → "<Degree Short Label> Student"
+       e.g. "B.Tech CSE Student", "B.E CSE Student"
+    2. Internship-only evidence without student degree → "Internship Experience"
+    3. Explicit non-placeholder role → role as-is
+    4. Degree short label alone → e.g. "B.Tech CSE"
+    5. Fallback → "Candidate Profile"
+
+    Never returns a forbidden placeholder string.
+    """
     degree_label = degree_short_label(degree)
+
     if experience_summary == "Student / Intern Profile":
-        return f"{degree_label} Student".strip() if degree_label else "Student / Intern Profile"
-    if role and role != "Candidate Profile":
+        label = f"{degree_label} Student".strip() if degree_label else "Student / Intern Profile"
+        return label
+
+    if experience_summary == "Internship Experience":
+        # Keep role if it's meaningful (e.g. "Software Engineering Intern")
+        if role and not _is_forbidden_label(role) and role != "Student / Intern Profile":
+            return role
+        return degree_label or "Internship Experience"
+
+    # Use the explicitly inferred role when it is meaningful
+    if role and not _is_forbidden_label(role) and role not in ("Candidate Profile", "Student / Intern Profile"):
         return role
+
     return degree_label or "Candidate Profile"
 
 
@@ -532,7 +1036,10 @@ def compute_confidence(
     college: str,
     has_email: bool,
     has_phone: bool,
+    has_linkedin: bool = False,
+    has_github: bool = False,
 ) -> int:
+    """Compute parsing confidence score 0–100."""
     score = 0
     if name and name != "Candidate Profile":
         score += 26
@@ -540,6 +1047,10 @@ def compute_confidence(
         score += 10
     if has_phone:
         score += 8
+    if has_linkedin:
+        score += 6
+    if has_github:
+        score += 6
     if degree:
         score += 14
     if college:

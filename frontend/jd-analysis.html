@@ -63,6 +63,7 @@
         <button class="btn btn-primary btn-lg" style="width:100%;justify-content:center;margin-top:18px;" onclick="analyzeDatabase()">
           Analyze Candidates
         </button>
+        <div id="analysisStatus" style="margin-top:12px;color:var(--text-muted);font-size:13px;">Backend ranking will run when you analyze this role.</div>
         <div class="database-strip">
           <div class="glass stat-card"><div class="stat-label">Stored Profiles</div><div class="stat-value" id="storedCount">0</div></div>
           <div class="glass stat-card"><div class="stat-label">User Added</div><div class="stat-value" id="userAddedCount">0</div></div>
@@ -106,7 +107,11 @@ function refreshPreview() {
     role: document.getElementById('roleFamily').value,
     jd: document.getElementById('jobDescription').value
   };
-  const top = getCandidateDatabase().map(c => rankCandidateForSearch(c, search)).sort((a,b) => b.finalScore - a.finalScore).slice(0, 4);
+  const cached = getRankedCandidatesForActiveSearch();
+  const top = (cached.length
+    ? cached
+    : getCandidateDatabase().map(c => rankCandidateForSearch(c, search)).sort((a,b) => b.finalScore - a.finalScore)
+  ).slice(0, 4);
   document.getElementById('previewList').innerHTML = top.map(c => `
     <div class="preview-row">
       <div>
@@ -118,13 +123,25 @@ function refreshPreview() {
   `).join('');
 }
 
-function analyzeDatabase() {
-  saveTalentSearch({
+async function analyzeDatabase() {
+  const button = document.querySelector('button[onclick="analyzeDatabase()"]');
+  const status = document.getElementById('analysisStatus');
+  const search = {
     title: document.getElementById('jobTitle').value || 'Untitled Role',
     role: document.getElementById('roleFamily').value,
     jd: document.getElementById('jobDescription').value
-  });
-  window.location.href = 'dashboard.html';
+  };
+  button.disabled = true;
+  status.textContent = 'Analyzing candidates with the FastAPI backend...';
+  try {
+    await analyzeSearchWithBackend(search);
+    status.textContent = 'Backend ranking completed. Opening rankings...';
+    window.location.href = 'dashboard.html';
+  } catch (error) {
+    status.textContent = error.message || 'Unable to rank candidates right now.';
+  } finally {
+    button.disabled = false;
+  }
 }
 
 function handleCandidateUpload(event) {
@@ -136,8 +153,10 @@ function handleCandidateUpload(event) {
       : result.added
       ? `Parsed successfully. ${result.candidate.name} added as User Added.`
       : `Duplicate detected. ${result.candidate.name} is already in User Added candidates.`;
+    refreshBackendStatus(true);
     refreshCounts();
     refreshPreview();
+    event.target.value = '';
   });
 }
 

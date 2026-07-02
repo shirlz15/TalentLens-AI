@@ -106,9 +106,10 @@ document.getElementById('footerPlaceholder').innerHTML = buildFooter();
 initNetworkCanvas();
 
 const params = new URLSearchParams(location.search);
-const id = parseInt(params.get('id')) || 1;
-const cardCandidates = getCandidateDatabase();
-const c = cardCandidates.find(x => x.id === id) || cardCandidates[0];
+const id = params.get('id') || '';
+const cardCandidates = getRankedCandidatesForActiveSearch();
+const fallbackCandidates = getCandidateDatabase();
+const c = getRankedCandidateById(id) || fallbackCandidates.find(x => String(x.id) === String(id)) || cardCandidates[0] || fallbackCandidates[0];
 const hiringConfidence = getHiringConfidence(c);
 const hiddenGemScore = getHiddenGemScore(c);
 const recruiterDecision = getRecruiterDecision(c);

@@ -80,3 +80,40 @@ Frontend workflow:
 - Candidate Database: view-only database with parsed profile details, scores, recruiter confidence, hidden-gem status, authenticity risk, and source
 - Hidden Gems: surfaces overlooked high-potential talent with hidden-gem reasoning and recruiter recommendation
 - AI Insights: analytics over score quality, experience, skill clusters, universities, confidence, risk, authenticity, and hidden-gem distribution
+
+## Frontend + Backend Run
+
+Frontend actions are connected to the FastAPI backend at `http://127.0.0.1:8000`.
+
+Terminal 1:
+
+```powershell
+cd "C:\Users\Sam Arul\Documents\TalentLens-AI"
+python -m uvicorn backend.app:app --reload
+```
+
+Terminal 2:
+
+```powershell
+cd "C:\Users\Sam Arul\Documents\TalentLens-AI\frontend"
+python -m http.server 8080
+```
+
+Open:
+
+```text
+http://localhost:8080/index.html
+```
+
+## Connected APIs
+
+- `POST /rank` from Analyze Role
+- `POST /upload-candidate` from resume upload on Analyze Role
+- `POST /compare` from Compare
+
+The backend enables CORS for:
+
+- `http://localhost:8080`
+- `http://localhost:4173`
+- `http://127.0.0.1:8080`
+- `http://127.0.0.1:4173`

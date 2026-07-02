@@ -102,7 +102,9 @@ function scorePill(score) {
 
 function updateSummary(data) {
   const search = getTalentSearch();
-  document.getElementById('dashboardSubtitle').innerHTML = `Ranking <strong style="color:var(--text-primary)">${search.title || 'Selected Role'}</strong> from ${getCandidateDatabase().length} stored profiles.`;
+  document.getElementById('dashboardSubtitle').innerHTML = data.length
+    ? `Ranking <strong style="color:var(--text-primary)">${search.title || 'Selected Role'}</strong> from backend-ranked TalentLens candidates.`
+    : `No backend ranking results yet for <strong style="color:var(--text-primary)">${search.title || 'Selected Role'}</strong>. Run Analyze Candidates first.`;
   document.getElementById('sumTotal').textContent = data.length;
   document.getElementById('sumAvg').textContent = data.length ? (data.reduce((s,c)=>s+c.finalScore,0)/data.length).toFixed(1) : '0';
   document.getElementById('sumGems').textContent = data.filter(c => c.hiddenGem).length;
@@ -111,12 +113,17 @@ function updateSummary(data) {
 }
 
 function populateSkillFilter() {
-  const skills = [...new Set(getCandidateDatabase().flatMap(c => c.skills))].sort();
+  const skills = [...new Set(activeRankings.flatMap(c => c.skills || []))].sort();
   document.getElementById('filterSkill').innerHTML = `<option value="">All Skills</option>` + skills.map(s => `<option>${s}</option>`).join('');
 }
 
 function renderTable(data) {
   const tbody = document.getElementById('candidateTableBody');
+  if (!data.length) {
+    tbody.innerHTML = `<tr><td colspan="10" style="padding:24px;color:var(--text-secondary);text-align:center;">No ranked candidates available. Open Analyze Role and run the backend ranking first.</td></tr>`;
+    updateSummary(data);
+    return;
+  }
   tbody.innerHTML = data.map((c, i) => `
     <tr>
       <td><div class="rank-badge ${i === 0 ? 'top' : ''}">${i + 1}</div></td>
@@ -142,7 +149,7 @@ function renderTable(data) {
       <td>${scorePill(c.cognitiveTwinScore)}</td>
       <td><span class="badge ${c.source === 'User Added' ? 'badge-electric' : 'badge-blue'}">${c.source}</span></td>
       <td style="color:var(--text-secondary);font-size:13px;">${c.searchReason}</td>
-      <td><button class="btn btn-secondary btn-sm" onclick="openSidebar(${c.id})">View Card</button></td>
+      <td><button class="btn btn-secondary btn-sm" onclick="openSidebar('${c.id}')">View Card</button></td>
     </tr>
   `).join('');
   updateSummary(data);
@@ -171,7 +178,7 @@ function toggleGemFilter() {
 }
 
 function openSidebar(id) {
-  const c = activeRankings.find(x => x.id === id);
+  const c = activeRankings.find(x => String(x.id) === String(id));
   if (!c) return;
   document.getElementById('sidebarContent').innerHTML = `
     <div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;">
