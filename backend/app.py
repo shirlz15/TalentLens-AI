@@ -63,9 +63,11 @@ except ImportError:  # pragma: no cover - keeps module importable before deps ar
 try:
     from .ranker import RankedCandidate, load_default_candidates, rank_candidates
     from .resume_parser import parse_uploaded_candidate
+    from .semantic_search import semantic_runtime_status
 except ImportError:  # pragma: no cover - direct execution support
     from ranker import RankedCandidate, load_default_candidates, rank_candidates
     from resume_parser import parse_uploaded_candidate
+    from semantic_search import semantic_runtime_status
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -117,6 +119,13 @@ def root() -> dict[str, str]:
 @app.get("/health")
 def health() -> dict[str, str]:
     return root()
+
+
+@app.get("/semantic-status")
+def semantic_status() -> dict[str, Any]:
+    """Lightweight diagnostics for lazy semantic-search initialization."""
+
+    return semantic_runtime_status()
 
 
 @app.post("/rank")

@@ -117,3 +117,21 @@ The backend enables CORS for:
 - `http://localhost:4173`
 - `http://127.0.0.1:8080`
 - `http://127.0.0.1:4173`
+
+## Render Low-Memory Deployment
+
+The backend keeps startup lightweight for Render free instances. Sentence Transformers, FAISS, and NumPy are not imported during application startup. Semantic models and vector indexes are loaded lazily on the first `/rank` request, then cached for reuse.
+
+Optional Render environment variable for the 512 MB free plan:
+
+```text
+TALENTLENS_SEMANTIC_BACKEND=deterministic
+```
+
+Use this when the instance cannot fit the SentenceTransformer model during the first ranking request. Ranking remains functional with deterministic semantic embeddings and the same explainable scoring pipeline.
+
+Check lazy-loading status locally:
+
+```text
+http://127.0.0.1:8000/semantic-status
+```
