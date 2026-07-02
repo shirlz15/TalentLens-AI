@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Candidate Rankings - TalentLens AI</title>
 <meta name="description" content="AI-ranked candidates from the stored TalentLens database."/>
-<link rel="stylesheet" href="styles.css?v=dropdown-fix"/>
+<link rel="stylesheet" href="styles.css?v=ranking-export"/>
 <style>
 .rank-page { padding: 40px 0 80px; }
 .summary-bar { display:flex; gap:16px; flex-wrap:wrap; padding:20px 24px; margin-bottom:24px; }
@@ -74,6 +74,18 @@
           <tbody id="candidateTableBody"></tbody>
         </table>
       </div>
+      <div class="ranking-export-actions">
+        <button type="button" id="exportRankingsBtn" class="btn export-ranked-btn" onclick="handleRankingsExport()">
+          <span class="export-download-icon" aria-hidden="true">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+              <path d="M12 3v11m0 0 4-4m-4 4-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M5 17v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </span>
+          <span class="export-spinner" aria-hidden="true"></span>
+          <span class="export-button-label">📊 Export Ranked Candidates (.xlsx)</span>
+        </button>
+      </div>
     </div>
   </main>
   <div id="footerPlaceholder"></div>
@@ -94,6 +106,33 @@ initNetworkCanvas();
 
 let gemOnly = false;
 let activeRankings = getRankedCandidatesForActiveSearch();
+let sheetJsLoadPromise = null;
+
+const SHEETJS_EXPORT_URLS = [
+  'https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'
+];
+const RANKING_EXPORT_COLUMNS = [
+  'Rank',
+  'Candidate ID',
+  'Candidate Name',
+  'Current Role',
+  'Experience',
+  'Final Score',
+  'Technical Score',
+  'Experience Score',
+  'Semantic Score',
+  'Behavioral Score',
+  'Authenticity Score',
+  'Cognitive Twin Score',
+  'Hidden Gem (Yes/No)',
+  'Matched Skills',
+  'Missing Skills',
+  'Strengths',
+  'Weaknesses',
+  'Recommendation',
+  'Why Ranked'
+];
 
 function scorePill(score) {
   const cls = score >= 88 ? 'high' : score >= 75 ? 'mid' : 'low';
@@ -278,6 +317,323 @@ function escapeFilterDropdownText(value) {
 
 function escapeFilterDropdownAttribute(value) {
   return escapeFilterDropdownText(value).replace(/`/g, '&#96;');
+}
+
+async function handleRankingsExport() {
+  const rankings = getRankingsForExport();
+  if (!rankings.length) {
+    showTalentLensToast('No ranking results available.\nPlease analyze candidates first.', 'warning');
+    return;
+  }
+
+  setRankingsExportLoading(true);
+  try {
+    await waitForExportFrame();
+    await ensureSheetJsAvailable();
+    const workbook = await createRankingsWorkbook(rankings);
+    const filename = `TalentLens_AI_Ranked_Candidates_${getExportDateStamp()}.xlsx`;
+    await waitForExportFrame();
+    XLSX.writeFile(workbook, filename, { compression: true });
+    showTalentLensToast('Ranked candidates exported successfully.', 'success');
+  } catch (error) {
+    console.error('TalentLens export failed:', error);
+    showTalentLensToast('Unable to export ranked candidates. Please try again.', 'error');
+  } finally {
+    setRankingsExportLoading(false);
+  }
+}
+
+function getRankingsForExport() {
+  return Array.isArray(activeRankings) ? activeRankings : [];
+}
+
+function setRankingsExportLoading(isLoading) {
+  const button = document.getElementById('exportRankingsBtn');
+  if (!button) return;
+  button.classList.toggle('is-loading', isLoading);
+  button.disabled = isLoading;
+  button.setAttribute('aria-busy', String(isLoading));
+}
+
+function ensureSheetJsAvailable() {
+  if (window.XLSX && window.XLSX.utils && typeof window.XLSX.writeFile === 'function') {
+    return Promise.resolve(window.XLSX);
+  }
+  if (sheetJsLoadPromise) return sheetJsLoadPromise;
+
+  sheetJsLoadPromise = new Promise((resolve, reject) => {
+    const existingScript = document.querySelector('script[data-talentlens-sheetjs]');
+    if (existingScript) {
+      existingScript.addEventListener('load', () => resolve(window.XLSX), { once: true });
+      existingScript.addEventListener('error', () => reject(new Error('SheetJS failed to load.')), { once: true });
+      return;
+    }
+
+    loadSheetJsScript(SHEETJS_EXPORT_URLS, resolve, reject);
+  });
+
+  return sheetJsLoadPromise;
+}
+
+function loadSheetJsScript(urls, resolve, reject) {
+  const [url, ...fallbackUrls] = urls;
+  if (!url) {
+    reject(new Error('SheetJS failed to load.'));
+    return;
+  }
+
+  const script = document.createElement('script');
+  script.src = url;
+  script.async = true;
+  script.dataset.talentlensSheetjs = 'true';
+  script.onload = () => {
+    if (window.XLSX && window.XLSX.utils && typeof window.XLSX.writeFile === 'function') {
+      resolve(window.XLSX);
+    } else {
+      script.remove();
+      loadSheetJsScript(fallbackUrls, resolve, reject);
+    }
+  };
+  script.onerror = () => {
+    script.remove();
+    loadSheetJsScript(fallbackUrls, resolve, reject);
+  };
+  document.head.appendChild(script);
+}
+
+async function createRankingsWorkbook(candidates) {
+  const rows = await buildRankingExportRows(candidates);
+  const worksheetData = [
+    ['TalentLens AI Ranked Candidate Output'],
+    [],
+    RANKING_EXPORT_COLUMNS,
+    ...rows.map(row => RANKING_EXPORT_COLUMNS.map(column => row[column] ?? ''))
+  ];
+  const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+  const workbook = XLSX.utils.book_new();
+  workbook.Props = {
+    Title: 'TalentLens AI Ranked Candidate Output',
+    Subject: 'Ranked candidate export',
+    Author: 'TalentLens AI',
+    CreatedDate: new Date()
+  };
+
+  applyRankingWorkbookFormatting(worksheet, worksheetData, rows.length);
+  XLSX.utils.book_append_sheet(workbook, worksheet, 'TalentLens Rankings');
+  return workbook;
+}
+
+async function buildRankingExportRows(candidates) {
+  const rows = [];
+  for (let index = 0; index < candidates.length; index += 1) {
+    rows.push(mapCandidateToExportRow(candidates[index], index));
+    if (index > 0 && index % 200 === 0) await waitForExportFrame();
+  }
+  return rows;
+}
+
+function mapCandidateToExportRow(candidate, index) {
+  return {
+    'Rank': index + 1,
+    'Candidate ID': getExportValue(candidate.candidate_id || candidate.candidateId || candidate.id),
+    'Candidate Name': getExportValue(candidate.name || candidate.displayName || candidate.candidate_name),
+    'Current Role': getExportValue(getCandidateHeadline(candidate) || candidate.role || candidate.profileLabel),
+    'Experience': getExportValue(getCandidateExperienceSummary(candidate) || candidate.experienceSummary || candidate.experience),
+    'Final Score': getExportNumber(candidate.finalScore ?? candidate.final_score),
+    'Technical Score': getExportNumber(candidate.technicalScore ?? candidate.technical_fit_score ?? candidate.technical_score),
+    'Experience Score': getExportNumber(candidate.experienceScore ?? candidate.experience_score),
+    'Semantic Score': getExportNumber(candidate.semanticSimilarityScore ?? candidate.semantic_similarity_score),
+    'Behavioral Score': getExportNumber(candidate.behavioralScore ?? candidate.behavioral_score),
+    'Authenticity Score': getExportNumber(candidate.authenticityScore ?? candidate.authenticity_score),
+    'Cognitive Twin Score': getExportNumber(candidate.cognitiveTwinScore ?? candidate.recruiter_cognitive_twin_score),
+    'Hidden Gem (Yes/No)': candidate.hiddenGem || candidate.hidden_gem_flag ? 'Yes' : 'No',
+    'Matched Skills': joinExportList(candidate.matchedSkills || candidate.matched_skills),
+    'Missing Skills': joinExportList(candidate.missingSkills || candidate.missing_skills || getScoreBreakdownList(candidate, 'gaps')),
+    'Strengths': joinExportList(candidate.strengths || candidate.candidate_strengths),
+    'Weaknesses': joinExportList(candidate.weaknesses || candidate.risks || candidate.candidate_risks),
+    'Recommendation': getExportValue(candidate.interviewRecommendation || candidate.interview_recommendation || candidate.recommendation || getRecruiterDecision(candidate)),
+    'Why Ranked': getExportValue(candidate.whyRanked || candidate.why_ranked || candidate.searchReason || candidate.search_reason)
+  };
+}
+
+function getScoreBreakdownList(candidate, key) {
+  const breakdown = candidate.scoreBreakdown || candidate.score_breakdown || {};
+  const values = [];
+  Object.values(breakdown).forEach(section => {
+    if (section && Array.isArray(section[key])) values.push(...section[key]);
+  });
+  return values;
+}
+
+function applyRankingWorkbookFormatting(worksheet, worksheetData, candidateCount) {
+  const range = XLSX.utils.decode_range(worksheet['!ref']);
+  const titleRow = 0;
+  const headerRow = 2;
+  const firstDataRow = 3;
+  const lastDataRow = firstDataRow + candidateCount - 1;
+  const finalScoreColumn = RANKING_EXPORT_COLUMNS.indexOf('Final Score');
+  const hiddenGemColumn = RANKING_EXPORT_COLUMNS.indexOf('Hidden Gem (Yes/No)');
+  const centeredColumns = new Set([
+    RANKING_EXPORT_COLUMNS.indexOf('Rank'),
+    finalScoreColumn,
+    RANKING_EXPORT_COLUMNS.indexOf('Technical Score'),
+    RANKING_EXPORT_COLUMNS.indexOf('Experience Score'),
+    RANKING_EXPORT_COLUMNS.indexOf('Semantic Score'),
+    RANKING_EXPORT_COLUMNS.indexOf('Behavioral Score'),
+    RANKING_EXPORT_COLUMNS.indexOf('Authenticity Score'),
+    RANKING_EXPORT_COLUMNS.indexOf('Cognitive Twin Score'),
+    hiddenGemColumn
+  ]);
+
+  worksheet['!merges'] = [{ s: { r: titleRow, c: 0 }, e: { r: titleRow, c: RANKING_EXPORT_COLUMNS.length - 1 } }];
+  worksheet['!cols'] = getExportColumnWidths(worksheetData);
+  worksheet['!rows'] = [
+    { hpt: 28 },
+    { hpt: 6 },
+    { hpt: 24 },
+    ...Array.from({ length: candidateCount }, () => ({ hpt: 32 }))
+  ];
+  worksheet['!autofilter'] = {
+    ref: `A${headerRow + 1}:${XLSX.utils.encode_col(RANKING_EXPORT_COLUMNS.length - 1)}${Math.max(headerRow + 1, lastDataRow + 1)}`
+  };
+  worksheet['!freeze'] = { xSplit: 0, ySplit: 3, topLeftCell: 'A4', activePane: 'bottomLeft', state: 'frozen' };
+
+  styleWorksheetCell(worksheet, titleRow, 0, {
+    font: { bold: true, color: { rgb: 'FFFFFF' }, sz: 16 },
+    fill: { patternType: 'solid', fgColor: { rgb: '141824' } },
+    alignment: { horizontal: 'left', vertical: 'center' }
+  });
+
+  for (let columnIndex = 0; columnIndex <= range.e.c; columnIndex += 1) {
+    styleWorksheetCell(worksheet, headerRow, columnIndex, {
+      font: { bold: true, color: { rgb: 'FFFFFF' } },
+      fill: { patternType: 'solid', fgColor: { rgb: '6C4DFF' } },
+      alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+      border: getExportBorderStyle()
+    });
+  }
+
+  for (let rowIndex = firstDataRow; rowIndex <= lastDataRow; rowIndex += 1) {
+    const isAlternate = (rowIndex - firstDataRow) % 2 === 1;
+    for (let columnIndex = 0; columnIndex <= range.e.c; columnIndex += 1) {
+      const cellRef = XLSX.utils.encode_cell({ r: rowIndex, c: columnIndex });
+      const cell = worksheet[cellRef];
+      if (!cell) continue;
+      const baseFill = isAlternate ? 'F4F6FB' : 'FFFFFF';
+      cell.s = {
+        font: { color: { rgb: '172033' } },
+        fill: { patternType: 'solid', fgColor: { rgb: baseFill } },
+        alignment: {
+          horizontal: centeredColumns.has(columnIndex) ? 'center' : 'left',
+          vertical: 'center',
+          wrapText: !centeredColumns.has(columnIndex)
+        },
+        border: getExportBorderStyle()
+      };
+
+      if (centeredColumns.has(columnIndex) && typeof cell.v === 'number') {
+        cell.z = '0.0';
+      }
+      if (columnIndex === finalScoreColumn) {
+        cell.s.fill = { patternType: 'solid', fgColor: { rgb: getFinalScoreFill(cell.v) } };
+        cell.s.font = { bold: true, color: { rgb: '172033' } };
+      }
+      if (columnIndex === hiddenGemColumn) {
+        const isGem = String(cell.v || '').toLowerCase() === 'yes';
+        cell.s.fill = { patternType: 'solid', fgColor: { rgb: isGem ? 'DDF8EA' : 'E7EAF0' } };
+        cell.s.font = { bold: true, color: { rgb: isGem ? '047857' : '5B6472' } };
+      }
+    }
+  }
+}
+
+function getExportColumnWidths(worksheetData) {
+  return RANKING_EXPORT_COLUMNS.map((column, columnIndex) => {
+    const maxLength = worksheetData.reduce((max, row) => {
+      const value = row[columnIndex] == null ? '' : String(row[columnIndex]);
+      return Math.max(max, value.length);
+    }, column.length);
+    return { wch: Math.min(Math.max(maxLength + 2, 12), columnIndex >= 13 ? 42 : 26) };
+  });
+}
+
+function styleWorksheetCell(worksheet, rowIndex, columnIndex, style) {
+  const cellRef = XLSX.utils.encode_cell({ r: rowIndex, c: columnIndex });
+  if (!worksheet[cellRef]) worksheet[cellRef] = { t: 's', v: '' };
+  worksheet[cellRef].s = style;
+}
+
+function getExportBorderStyle() {
+  return {
+    top: { style: 'thin', color: { rgb: 'D9DDEA' } },
+    right: { style: 'thin', color: { rgb: 'D9DDEA' } },
+    bottom: { style: 'thin', color: { rgb: 'D9DDEA' } },
+    left: { style: 'thin', color: { rgb: 'D9DDEA' } }
+  };
+}
+
+function getFinalScoreFill(value) {
+  const score = Number(value);
+  if (score >= 88) return 'CFF7DF';
+  if (score >= 75) return 'E4DEFF';
+  if (score > 0) return 'FFF1C7';
+  return 'F0F2F6';
+}
+
+function getExportDateStamp() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function getExportValue(value) {
+  if (value == null) return '';
+  return String(value).trim();
+}
+
+function getExportNumber(value) {
+  if (value == null || value === '') return '';
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : '';
+}
+
+function joinExportList(value) {
+  if (Array.isArray(value)) {
+    return value.map(item => String(item || '').trim()).filter(Boolean).join(', ');
+  }
+  if (value == null) return '';
+  return String(value).trim();
+}
+
+function waitForExportFrame() {
+  return new Promise(resolve => {
+    if (window.requestIdleCallback) {
+      window.requestIdleCallback(() => resolve(), { timeout: 120 });
+    } else if (window.requestAnimationFrame) {
+      window.requestAnimationFrame(() => resolve());
+    } else {
+      setTimeout(resolve, 0);
+    }
+  });
+}
+
+function showTalentLensToast(message, type = 'info') {
+  let region = document.getElementById('talentToastRegion');
+  if (!region) {
+    region = document.createElement('div');
+    region.id = 'talentToastRegion';
+    region.className = 'talent-toast-region';
+    region.setAttribute('aria-live', 'polite');
+    document.body.appendChild(region);
+  }
+
+  const toast = document.createElement('div');
+  toast.className = `talent-toast talent-toast-${type}`;
+  toast.textContent = String(message || '');
+  region.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add('is-visible'));
+  setTimeout(() => {
+    toast.classList.remove('is-visible');
+    setTimeout(() => toast.remove(), 180);
+  }, 3600);
 }
 
 function renderTable(data) {
