@@ -10,7 +10,12 @@ from dataclasses import dataclass
 from typing import Any
 
 try:  # pragma: no cover - optional dependency
-    import fitz  # type: ignore
+    # PyMuPDF >= 1.24 ships as 'pymupdf' with a 'fitz' compatibility shim.
+    # Try the new name first, then fall back to the legacy 'fitz' package name.
+    try:
+        import pymupdf as fitz  # type: ignore
+    except ImportError:
+        import fitz  # type: ignore
 except Exception:  # pragma: no cover
     fitz = None
 
