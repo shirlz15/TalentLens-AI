@@ -1,1 +1,50 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+*.egg
+.eggs/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.cover
+.coverage
+htmlcov/
 
+# Virtual environments
+venv/
+.venv/
+env/
+.env
+
+# Environment / secrets
+.env
+*.env
+.env.*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artefacts / archives
+*.zip
+*.tar.gz
+*.whl
+
+# Output CSVs (generated, not source)
+output/results.csv
+output/semantic_results.csv
+
+# Model cache (can be large)
+.cache/
+models/
