@@ -479,35 +479,29 @@ def generate_explanation(
 ) -> str:
     """Create a recruiter-facing explanation for why the candidate ranked here."""
 
-    strongest = max(
+    dimensions = sorted(
         (
-            ("semantic similarity", semantic.score),
+            ("semantic fit", semantic.score),
             ("technical fit", technical.score),
-            ("experience", experience.score),
+            ("experience alignment", experience.score),
             ("career consistency", career_consistency.score),
-            ("behavioral signals", behavioral.score),
-            ("authenticity", authenticity.score),
+            ("behavioral engagement", behavioral.score),
+            ("profile evidence", authenticity.score),
         ),
         key=lambda item: item[1],
+        reverse=True,
     )
-    strength_text = f" Strengths: {'; '.join((strengths or [])[:3])}." if strengths else ""
-    risk_text = f" Risks: {'; '.join((risks or [])[:3])}." if risks else ""
-    cluster_text = (
-        f" Skill cluster bonus: +{skill_cluster.score:.2f} for {skill_cluster.evidence[0]}."
-        if skill_cluster.score > 0 and skill_cluster.evidence
-        else ""
-    )
-    semantic_text = (
-        f" {semantic.explanation}"
-        if semantic.score > 0
-        else " Semantic retrieval added limited supporting evidence for this profile."
-    )
+    top_dimensions = ", ".join(f"{label} {score:.1f}" for label, score in dimensions[:2])
+    matched = technical.metadata.get("matched_skills", []) if isinstance(technical.metadata, dict) else []
+    missing = technical.metadata.get("missing_skills", []) if isinstance(technical.metadata, dict) else []
+    matched_text = f" It matches required skills such as {', '.join(matched[:3])}." if matched else ""
+    gap_text = f" Main gap: {', '.join(missing[:3])}." if missing else " No major required-skill gap is visible from the ranking evidence."
+    strength_text = f" Evidence highlights: {'; '.join((strengths or [])[:2])}." if strengths else ""
+    cluster_text = f" Skill ecosystem: {skill_cluster.evidence[0]}." if skill_cluster.score > 0 and skill_cluster.evidence else ""
 
     return (
-        f"Ranked on a {final_score:.2f} final score. Strongest dimension is {strongest[0]} "
-        f"({strongest[1]:.2f}).{semantic_text} {technical.explanation} {experience.explanation} "
-        f"{career_consistency.explanation} {behavioral.explanation}{cluster_text}"
-        f"{strength_text}{risk_text}"
+        f"Ranked with a {final_score:.2f} final score, led by {top_dimensions}."
+        f"{matched_text}{gap_text} {cluster_text}{strength_text}"
     ).strip()
 
 

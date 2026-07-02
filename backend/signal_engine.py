@@ -168,9 +168,9 @@ def _explain_components(components: dict[str, float], signals: dict[str, Any]) -
         risks.append("Incomplete Redrob profile")
 
     if components["verification_strength"] >= 100:
-        positives.append("Email, phone, and LinkedIn are verified/connected")
+        positives.append("Contact and LinkedIn trust signals are strong")
     elif components["verification_strength"] < 70:
-        risks.append("Missing one or more trust verification signals")
+        risks.append("Profile trust evidence is incomplete")
 
     return positives, risks
 

@@ -478,19 +478,19 @@ def authenticity_score(candidate: dict[str, Any], config: ScoringConfig | None =
     score += weights["named_identity"] if _has_named_identity(profile) else 0
 
     if verified_email:
-        evidence.append("Verified email")
+        evidence.append("Email verification signal present")
     else:
-        gaps.append("Email is not verified")
+        gaps.append("Limited email verification evidence found")
 
     if verified_phone:
-        evidence.append("Verified phone")
+        evidence.append("Phone verification signal present")
     else:
-        gaps.append("Phone is not verified")
+        gaps.append("Limited contact evidence found")
 
     if linkedin_connected:
-        evidence.append("LinkedIn connected")
+        evidence.append("LinkedIn connection signal present")
     else:
-        gaps.append("LinkedIn is not connected")
+        gaps.append("Limited LinkedIn connection evidence found")
 
     if completeness >= 75:
         evidence.append("High profile completeness")
@@ -516,7 +516,7 @@ def authenticity_score(candidate: dict[str, Any], config: ScoringConfig | None =
     generic_penalty = _generic_profile_penalty(candidate, active_config)
     if generic_penalty:
         score -= generic_penalty
-        gaps.append("Profile text appears sparse or generic")
+        gaps.append("Profile evidence is incomplete")
 
     suspicious_penalty, suspicious_flags = _suspicious_profile_penalty(
         candidate_skills,

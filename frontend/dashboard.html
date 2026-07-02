@@ -122,11 +122,10 @@ const RANKING_EXPORT_COLUMNS = [
   'Technical Score',
   'Experience Score',
   'Semantic Score',
-  'Behavioral Score',
-  'Authenticity Score',
   'Cognitive Twin Score',
-  'Hidden Gem (Yes/No)',
-  'Matched Skills',
+  'Hidden Gem Score',
+  'Hidden Gem Flag',
+  'Authenticity Risk',
   'Missing Skills',
   'Strengths',
   'Weaknesses',
@@ -420,6 +419,8 @@ async function createRankingsWorkbook(candidates) {
 
   applyRankingWorkbookFormatting(worksheet, worksheetData, rows.length);
   XLSX.utils.book_append_sheet(workbook, worksheet, 'TalentLens Rankings');
+  const summaryWorksheet = createRankingsSummaryWorksheet(rows);
+  XLSX.utils.book_append_sheet(workbook, summaryWorksheet, 'Summary');
   return workbook;
 }
 
@@ -433,8 +434,15 @@ async function buildRankingExportRows(candidates) {
 }
 
 function mapCandidateToExportRow(candidate, index) {
+  const rank = index + 1;
+  const missingSkills = getCandidateMissingSkillsForExport(candidate);
+  const strengths = buildCandidateStrengthBullets(candidate, missingSkills);
+  const weaknesses = buildCandidateWeaknessBullets(candidate, missingSkills);
+  const recommendation = buildCandidateRecommendation(candidate, missingSkills);
+  const whyRanked = buildCandidateWhyRanked(candidate, rank, missingSkills);
+
   return {
-    'Rank': index + 1,
+    'Rank': rank,
     'Candidate ID': getExportValue(candidate.candidate_id || candidate.candidateId || candidate.id),
     'Candidate Name': getExportValue(candidate.name || candidate.displayName || candidate.candidate_name),
     'Current Role': getExportValue(getCandidateHeadline(candidate) || candidate.role || candidate.profileLabel),
@@ -443,17 +451,204 @@ function mapCandidateToExportRow(candidate, index) {
     'Technical Score': getExportNumber(candidate.technicalScore ?? candidate.technical_fit_score ?? candidate.technical_score),
     'Experience Score': getExportNumber(candidate.experienceScore ?? candidate.experience_score),
     'Semantic Score': getExportNumber(candidate.semanticSimilarityScore ?? candidate.semantic_similarity_score),
-    'Behavioral Score': getExportNumber(candidate.behavioralScore ?? candidate.behavioral_score),
-    'Authenticity Score': getExportNumber(candidate.authenticityScore ?? candidate.authenticity_score),
     'Cognitive Twin Score': getExportNumber(candidate.cognitiveTwinScore ?? candidate.recruiter_cognitive_twin_score),
-    'Hidden Gem (Yes/No)': candidate.hiddenGem || candidate.hidden_gem_flag ? 'Yes' : 'No',
-    'Matched Skills': joinExportList(candidate.matchedSkills || candidate.matched_skills),
-    'Missing Skills': joinExportList(candidate.missingSkills || candidate.missing_skills || getScoreBreakdownList(candidate, 'gaps')),
-    'Strengths': joinExportList(candidate.strengths || candidate.candidate_strengths),
-    'Weaknesses': joinExportList(candidate.weaknesses || candidate.risks || candidate.candidate_risks),
-    'Recommendation': getExportValue(candidate.interviewRecommendation || candidate.interview_recommendation || candidate.recommendation || getRecruiterDecision(candidate)),
-    'Why Ranked': getExportValue(candidate.whyRanked || candidate.why_ranked || candidate.searchReason || candidate.search_reason)
+    'Hidden Gem Score': getExportNumber(candidate.hiddenGemScore ?? candidate.hidden_gem_score),
+    'Hidden Gem Flag': candidate.hiddenGem || candidate.hidden_gem_flag ? 'Yes' : 'No',
+    'Authenticity Risk': buildSafeAuthenticityRisk(candidate),
+    'Missing Skills': formatMissingSkills(missingSkills, candidate),
+    'Strengths': strengths,
+    'Weaknesses': weaknesses,
+    'Recommendation': recommendation,
+    'Why Ranked': whyRanked
   };
+}
+
+function getCandidateMissingSkillsForExport(candidate) {
+  const technicalMetadata = getBreakdownMetadata(candidate, 'technical');
+  const fromBackend = normalizeExportList(technicalMetadata.missing_skills || technicalMetadata.missingSkills);
+  if (fromBackend.length) return fromBackend;
+
+  const required = extractRoleSkills(getTalentSearch()).map(skill => normalizeSkillForExport(skill));
+  const candidateSkills = normalizeExportList(candidate.skills || []).map(skill => normalizeSkillForExport(skill));
+  return required.filter(requiredSkill => !candidateSkills.some(skill => skillsOverlapForExport(skill, requiredSkill)));
+}
+
+function getCandidateMatchedSkillsForExport(candidate) {
+  const technicalMetadata = getBreakdownMetadata(candidate, 'technical');
+  const fromBackend = normalizeExportList(technicalMetadata.matched_skills || technicalMetadata.matchedSkills);
+  if (fromBackend.length) return fromBackend;
+
+  const required = extractRoleSkills(getTalentSearch()).map(skill => normalizeSkillForExport(skill));
+  const candidateSkills = normalizeExportList(candidate.skills || []).map(skill => normalizeSkillForExport(skill));
+  return required.filter(requiredSkill => candidateSkills.some(skill => skillsOverlapForExport(skill, requiredSkill)));
+}
+
+function buildCandidateStrengthBullets(candidate, missingSkills) {
+  const bullets = [];
+  const matched = getCandidateMatchedSkillsForExport(candidate);
+  const role = getExportValue(getCandidateHeadline(candidate) || candidate.role || candidate.profileLabel);
+  const semantic = getExportNumber(candidate.semanticSimilarityScore ?? candidate.semantic_similarity_score);
+  const years = Number(candidate.experience || 0);
+  const education = getExportValue(getCandidateEducationSummary(candidate) || candidate.education);
+  const projects = normalizeExportList(candidate.projects || []);
+
+  if (matched.length) bullets.push(`Strong match on ${formatSkillList(matched.slice(0, 3))}`);
+  if (years >= 5) bullets.push(`${years.toFixed(1)} years of experience supports senior role readiness`);
+  else if (years > 0) bullets.push(`${years.toFixed(1)} years of hands-on experience for focused recruiter review`);
+  if (projects.length) bullets.push(`Project evidence supports ${formatSkillList(projects.slice(0, 1))}`);
+  if (education && education !== 'Candidate Profile') bullets.push(`Education evidence: ${education}`);
+  if (semantic >= 78) bullets.push(`High semantic match to the active role requirements`);
+  if (candidate.hiddenGem || candidate.hidden_gem_flag) bullets.push(`Hidden-gem signal suggests growth potential`);
+  if (role && !bullets.some(item => item.toLowerCase().includes('role'))) bullets.push(`Role alignment with ${role}`);
+
+  return toBulletText(uniqueExportItems(bullets).slice(0, 3));
+}
+
+function buildCandidateWeaknessBullets(candidate, missingSkills) {
+  const bullets = [];
+  const search = getTalentSearch();
+  const requiredYears = inferRequiredYearsForExport(search);
+  const years = Number(candidate.experience || 0);
+  const skillText = `${(candidate.skills || []).join(' ')} ${candidate.searchReason || ''}`.toLowerCase();
+
+  if (missingSkills.length) bullets.push(`Limited evidence for ${formatSkillList(missingSkills.slice(0, 3))}`);
+  if (requiredYears && years > 0 && years < requiredYears) bullets.push(`Experience appears below the ${requiredYears.toFixed(0)} year target`);
+  if (/mlops|kubernetes|deployment|production|cloud/i.test(`${search.jd || ''} ${search.title || ''}`) && !/(mlops|kubernetes|docker|aws|gcp|azure|deployment|production)/i.test(skillText)) {
+    bullets.push('Production deployment evidence could be stronger');
+  }
+  if (!normalizeExportList(candidate.projects || []).length && (candidate.finalScore || 0) < 85) bullets.push('Project detail is limited for deeper validation');
+  if (!bullets.length) bullets.push('No major concerns; validate applied depth during recruiter screen');
+
+  return toBulletText(uniqueExportItems(bullets).slice(0, 3));
+}
+
+function buildCandidateRecommendation(candidate, missingSkills) {
+  const finalScore = Number(candidate.finalScore ?? candidate.final_score ?? 0);
+  const risk = getExportRiskLevel(candidate);
+  const matched = getCandidateMatchedSkillsForExport(candidate);
+  const level = getRecommendationLevel(finalScore, risk, missingSkills.length);
+  const evidence = [];
+
+  if (matched.length) evidence.push(`${formatSkillList(matched.slice(0, 3))} fit`);
+  if (Number(candidate.experience || 0) >= inferRequiredYearsForExport(getTalentSearch())) evidence.push('experience alignment');
+  if ((candidate.semanticSimilarityScore ?? candidate.semantic_similarity_score ?? 0) >= 78) evidence.push('strong semantic match');
+  if (!evidence.length && missingSkills.length) evidence.push(`needs validation on ${formatSkillList(missingSkills.slice(0, 2))}`);
+  if (!evidence.length) evidence.push('useful adjacent profile evidence');
+
+  return `${level} - ${sentenceCase(evidence.join(', '))}.`;
+}
+
+function getRecommendationLevel(finalScore, risk, missingCount) {
+  if (finalScore >= 88 && risk !== 'HIGH' && missingCount <= 1) return 'Strong Shortlist';
+  if (finalScore >= 78 && risk !== 'HIGH') return 'Shortlist';
+  if (finalScore >= 66) return 'Consider';
+  if (finalScore >= 55) return 'Backup Candidate';
+  return 'Not Recommended';
+}
+
+function buildCandidateWhyRanked(candidate, rank, missingSkills) {
+  const finalScore = getExportNumber(candidate.finalScore ?? candidate.final_score);
+  const matched = getCandidateMatchedSkillsForExport(candidate);
+  const strongest = matched.length
+    ? `${formatSkillList(matched.slice(0, 3))} skill alignment`
+    : getCandidateHeadline(candidate) || 'available profile evidence';
+  const gap = missingSkills.length
+    ? `The main gap is ${formatSkillList(missingSkills.slice(0, 3))}.`
+    : 'No major required-skill gap is visible from the saved ranking evidence.';
+  const rankReason = rank <= 3
+    ? 'That rank is justified by stronger fit evidence than most candidates in this result set.'
+    : 'That rank reflects useful fit signals with a few recruiter-validation gaps.';
+  return sanitizeExportText(`Ranked #${rank} with a final score of ${formatScoreForText(finalScore)} due to ${strongest}. ${gap} ${rankReason}`);
+}
+
+function buildSafeAuthenticityRisk(candidate) {
+  const risk = getExportRiskLevel(candidate);
+  if (risk === 'LOW') return 'Low - profile evidence is well supported by available signals';
+  if (risk === 'HIGH') return 'High - some claims require recruiter validation';
+  return 'Medium - profile evidence is incomplete in some areas';
+}
+
+function getBreakdownMetadata(candidate, sectionName) {
+  const breakdown = candidate.scoreBreakdown || candidate.score_breakdown || {};
+  const section = breakdown[sectionName] || {};
+  return section.metadata || {};
+}
+
+function normalizeExportList(value) {
+  if (Array.isArray(value)) return value.map(item => String(item || '').trim()).filter(Boolean);
+  if (value == null || value === '') return [];
+  return String(value).split(/[,;|]/).map(item => item.trim()).filter(Boolean);
+}
+
+function normalizeSkillForExport(skill) {
+  return String(skill || '').toLowerCase().replace(/[^a-z0-9+#. ]/g, '').replace(/\s+/g, ' ').trim();
+}
+
+function skillsOverlapForExport(left, right) {
+  if (!left || !right) return false;
+  return left === right || left.includes(right) || right.includes(left);
+}
+
+function formatSkillList(skills) {
+  return normalizeExportList(skills)
+    .map(skill => skill.replace(/\b\w/g, char => char.toUpperCase()).replace(/\bMl\b/g, 'ML').replace(/\bAi\b/g, 'AI').replace(/\bSql\b/g, 'SQL'))
+    .join(', ');
+}
+
+function formatMissingSkills(missingSkills, candidate) {
+  if (!missingSkills.length) return 'No major missing skills';
+  const prefix = (candidate.finalScore || 0) >= 78 || missingSkills.length <= 2 ? 'Minor gaps' : 'Missing';
+  return `${prefix}: ${formatSkillList(missingSkills.slice(0, 5))}`;
+}
+
+function toBulletText(items) {
+  return uniqueExportItems(items).map(item => `• ${sanitizeExportText(item)}`).join('\n');
+}
+
+function uniqueExportItems(items) {
+  const seen = new Set();
+  return normalizeExportList(items).filter(item => {
+    const key = item.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function getExportRiskLevel(candidate) {
+  const raw = String(candidate.riskLevel || candidate.risk_level || candidate.authenticityRisk || candidate.authenticity_risk || '').toUpperCase();
+  if (raw.includes('HIGH')) return 'HIGH';
+  if (raw.includes('LOW')) return 'LOW';
+  return 'MEDIUM';
+}
+
+function inferRequiredYearsForExport(search) {
+  const text = `${search?.title || ''} ${search?.role || ''} ${search?.jd || ''}`;
+  const match = text.match(/(\d+(?:\.\d+)?)\s*\+?\s*(?:years|yrs|yr)/i);
+  return match ? Number(match[1]) : 0;
+}
+
+function sentenceCase(text) {
+  const clean = String(text || '').trim();
+  if (!clean) return '';
+  return clean.charAt(0).toUpperCase() + clean.slice(1);
+}
+
+function formatScoreForText(value) {
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue.toFixed(1) : '';
+}
+
+function sanitizeExportText(value) {
+  return String(value || '')
+    .replace(/phone is not verified/gi, 'limited contact evidence found')
+    .replace(/email is not verified/gi, 'limited contact evidence found')
+    .replace(/identity is not verified/gi, 'profile evidence is incomplete')
+    .replace(/missing one or more trust verification signals/gi, 'profile evidence is incomplete')
+    .replace(/profile text appears sparse or generic/gi, 'profile evidence is incomplete')
+    .replace(/when the role benefits from/gi, 'for roles requiring')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function getScoreBreakdownList(candidate, key) {
@@ -472,16 +667,15 @@ function applyRankingWorkbookFormatting(worksheet, worksheetData, candidateCount
   const firstDataRow = 3;
   const lastDataRow = firstDataRow + candidateCount - 1;
   const finalScoreColumn = RANKING_EXPORT_COLUMNS.indexOf('Final Score');
-  const hiddenGemColumn = RANKING_EXPORT_COLUMNS.indexOf('Hidden Gem (Yes/No)');
+  const hiddenGemColumn = RANKING_EXPORT_COLUMNS.indexOf('Hidden Gem Flag');
   const centeredColumns = new Set([
     RANKING_EXPORT_COLUMNS.indexOf('Rank'),
     finalScoreColumn,
     RANKING_EXPORT_COLUMNS.indexOf('Technical Score'),
     RANKING_EXPORT_COLUMNS.indexOf('Experience Score'),
     RANKING_EXPORT_COLUMNS.indexOf('Semantic Score'),
-    RANKING_EXPORT_COLUMNS.indexOf('Behavioral Score'),
-    RANKING_EXPORT_COLUMNS.indexOf('Authenticity Score'),
     RANKING_EXPORT_COLUMNS.indexOf('Cognitive Twin Score'),
+    RANKING_EXPORT_COLUMNS.indexOf('Hidden Gem Score'),
     hiddenGemColumn
   ]);
 
@@ -491,7 +685,7 @@ function applyRankingWorkbookFormatting(worksheet, worksheetData, candidateCount
     { hpt: 28 },
     { hpt: 6 },
     { hpt: 24 },
-    ...Array.from({ length: candidateCount }, () => ({ hpt: 32 }))
+    ...Array.from({ length: candidateCount }, () => ({ hpt: 78 }))
   ];
   worksheet['!autofilter'] = {
     ref: `A${headerRow + 1}:${XLSX.utils.encode_col(RANKING_EXPORT_COLUMNS.length - 1)}${Math.max(headerRow + 1, lastDataRow + 1)}`
@@ -525,8 +719,8 @@ function applyRankingWorkbookFormatting(worksheet, worksheetData, candidateCount
         fill: { patternType: 'solid', fgColor: { rgb: baseFill } },
         alignment: {
           horizontal: centeredColumns.has(columnIndex) ? 'center' : 'left',
-          vertical: 'center',
-          wrapText: !centeredColumns.has(columnIndex)
+          vertical: 'top',
+          wrapText: true
         },
         border: getExportBorderStyle()
       };
@@ -547,13 +741,86 @@ function applyRankingWorkbookFormatting(worksheet, worksheetData, candidateCount
   }
 }
 
+function createRankingsSummaryWorksheet(rows) {
+  const topCandidates = rows.slice(0, 5);
+  const total = rows.length;
+  const average = total
+    ? rows.reduce((sum, row) => sum + (Number(row['Final Score']) || 0), 0) / total
+    : 0;
+  const hiddenGems = rows.filter(row => row['Hidden Gem Flag'] === 'Yes').length;
+  const summaryData = [
+    ['TalentLens AI Ranked Candidate Output - Summary'],
+    [],
+    ['Metric', 'Value'],
+    ['Total candidates ranked', total],
+    ['Top candidate', topCandidates[0]?.['Candidate Name'] || ''],
+    ['Average final score', Number(average.toFixed(1))],
+    ['Number of hidden gems', hiddenGems],
+    ['Export generated date', getExportDateStamp()],
+    [],
+    ['Top 5 candidates', '', '', ''],
+    ['Rank', 'Candidate Name', 'Final Score', 'Recommendation'],
+    ...topCandidates.map(row => [row.Rank, row['Candidate Name'], row['Final Score'], row.Recommendation]),
+    [],
+    ['Scoring weights used', ''],
+    ['Technical Fit', '34%'],
+    ['Experience', '20%'],
+    ['Behavioral Signals', '20%'],
+    ['Authenticity', '15%'],
+    ['Career Consistency', '11%'],
+    ['Semantic Retrieval Blend', '15% semantic / 85% hybrid scoring']
+  ];
+  const worksheet = XLSX.utils.aoa_to_sheet(summaryData);
+  const weightsRowIndex = 12 + topCandidates.length;
+  worksheet['!merges'] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } },
+    { s: { r: 9, c: 0 }, e: { r: 9, c: 3 } },
+    { s: { r: weightsRowIndex, c: 0 }, e: { r: weightsRowIndex, c: 1 } }
+  ];
+  worksheet['!cols'] = [{ wch: 24 }, { wch: 34 }, { wch: 16 }, { wch: 64 }];
+  worksheet['!rows'] = summaryData.map((_row, index) => ({ hpt: index === 0 ? 30 : index >= 11 && index < 11 + topCandidates.length ? 38 : 24 }));
+
+  const range = XLSX.utils.decode_range(worksheet['!ref']);
+  for (let rowIndex = 0; rowIndex <= range.e.r; rowIndex += 1) {
+    for (let columnIndex = 0; columnIndex <= range.e.c; columnIndex += 1) {
+      const cellRef = XLSX.utils.encode_cell({ r: rowIndex, c: columnIndex });
+      const cell = worksheet[cellRef];
+      if (!cell) continue;
+      const isSectionHeader = rowIndex === 0 || rowIndex === 9 || rowIndex === weightsRowIndex;
+      const isTableHeader = rowIndex === 2 || rowIndex === 10;
+      cell.s = {
+        font: {
+          bold: isSectionHeader || isTableHeader,
+          color: { rgb: isSectionHeader || isTableHeader ? 'FFFFFF' : '172033' },
+          sz: rowIndex === 0 ? 16 : 11
+        },
+        fill: {
+          patternType: 'solid',
+          fgColor: { rgb: isSectionHeader ? '141824' : isTableHeader ? '6C4DFF' : rowIndex % 2 ? 'F4F6FB' : 'FFFFFF' }
+        },
+        alignment: {
+          horizontal: columnIndex === 2 || columnIndex === 0 && rowIndex >= 10 && rowIndex <= 15 ? 'center' : 'left',
+          vertical: 'top',
+          wrapText: true
+        },
+        border: getExportBorderStyle()
+      };
+      if (typeof cell.v === 'number') cell.z = '0.0';
+    }
+  }
+  return worksheet;
+}
+
 function getExportColumnWidths(worksheetData) {
   return RANKING_EXPORT_COLUMNS.map((column, columnIndex) => {
     const maxLength = worksheetData.reduce((max, row) => {
       const value = row[columnIndex] == null ? '' : String(row[columnIndex]);
       return Math.max(max, value.length);
     }, column.length);
-    return { wch: Math.min(Math.max(maxLength + 2, 12), columnIndex >= 13 ? 42 : 26) };
+    if (columnIndex >= RANKING_EXPORT_COLUMNS.indexOf('Missing Skills')) {
+      return { wch: Math.min(Math.max(maxLength + 2, 24), 48) };
+    }
+    return { wch: Math.min(Math.max(maxLength + 2, 12), 24) };
   });
 }
 
@@ -592,7 +859,7 @@ function getExportValue(value) {
 function getExportNumber(value) {
   if (value == null || value === '') return '';
   const numberValue = Number(value);
-  return Number.isFinite(numberValue) ? numberValue : '';
+  return Number.isFinite(numberValue) ? Number(numberValue.toFixed(1)) : '';
 }
 
 function joinExportList(value) {

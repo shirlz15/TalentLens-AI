@@ -169,8 +169,8 @@ def _fallback_interview_recommendation(candidate: dict[str, Any]) -> str:
     skills = candidate.get("skills") or []
     top_skills = ", ".join(str(skill) for skill in skills[:3]) or "role-aligned skills"
     return (
-        f"Interview {name} when the role benefits from {top_skills} and roughly {years} years of experience. "
-        "Use the interview to validate applied depth, communication quality, and the evidence behind the strongest claimed skills."
+        f"Recommend interviewing {name} for roles requiring {top_skills} with roughly {years} years of experience. "
+        "Use the screen to validate applied depth, communication quality, and supporting evidence for the strongest claimed skills."
     )
 
 
