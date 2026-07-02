@@ -16,6 +16,17 @@
   color: var(--text-primary); font-size: 14px; padding: 13px 14px; outline: none; transition: var(--transition);
 }
 .role-input:focus, .role-select:focus, .jd-textarea:focus { border-color: var(--purple); box-shadow: 0 0 0 3px rgba(139,92,246,.12); }
+/* The native role-select is hidden; the tl-custom-dropdown replaces it visually */
+.role-select.is-native-hidden {
+  position: absolute; width: 1px; height: 1px; opacity: 0;
+  pointer-events: none; border: 0; margin: 0; padding: 0;
+  clip: rect(0 0 0 0); clip-path: inset(50%);
+}
+/* Wrapper so the custom dropdown fills the column the same as the native select */
+#roleFamily + .tl-custom-dropdown,
+[data-tl-dropdown-for="roleFamily"] {
+  width: 100%;
+}
 .jd-textarea { min-height: 220px; resize: vertical; line-height: 1.7; font-family: Inter, sans-serif; }
 .database-strip { display: grid; grid-template-columns: repeat(3,1fr); gap: 16px; margin-top: 20px; }
 .upload-lite { border: 1px dashed rgba(139,92,246,.45); border-radius: 14px; padding: 20px; background: rgba(139,92,246,.06); }
@@ -46,13 +57,13 @@
           </div>
           <div>
             <div class="field-label">Role</div>
-            <select id="roleFamily" class="role-select">
-              <option>AI/ML Engineering</option>
-              <option>Data Science</option>
-              <option>Data Engineering</option>
-              <option>Analytics</option>
-              <option>Full Stack Engineering</option>
-              <option>Conversational AI</option>
+            <select id="roleFamily" class="role-select" data-custom-dropdown="AI/ML Engineering">
+              <option value="AI/ML Engineering">AI/ML Engineering</option>
+              <option value="Data Science">Data Science</option>
+              <option value="Data Engineering">Data Engineering</option>
+              <option value="Analytics">Analytics</option>
+              <option value="Full Stack Engineering">Full Stack Engineering</option>
+              <option value="Conversational AI">Conversational AI</option>
             </select>
           </div>
         </div>
@@ -163,6 +174,12 @@ function handleCandidateUpload(event) {
 ['jobTitle','roleFamily','jobDescription'].forEach(id => document.getElementById(id).addEventListener('input', refreshPreview));
 refreshCounts();
 refreshPreview();
+
+// Initialise the dark custom dropdown for the Role selector
+initCustomDropdowns();
+
+// When the native roleFamily value changes (via custom dropdown pick), refresh preview
+document.getElementById('roleFamily').addEventListener('change', refreshPreview);
 </script>
 </body>
 </html>

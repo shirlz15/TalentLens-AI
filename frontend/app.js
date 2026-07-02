@@ -1543,3 +1543,158 @@ function initNetworkCanvas(canvasId = 'bgCanvas') {
   draw();
 }
 
+
+// ── SHARED CUSTOM DROPDOWN ───────────────────────────────────────────────────
+// Used on Rankings (dashboard.html) and Analyze Role (jd-analysis.html).
+// Replaces any native <select data-custom-dropdown="..."> with a dark-themed
+// accessible listbox that matches the TalentLens design system.
+// Keyboard: ArrowUp/Down navigate options, Enter/Space select, Escape closes,
+// Home/End jump to first/last option.
+
+function initCustomDropdowns() {
+  // Init every <select data-custom-dropdown> on the current page
+  document.querySelectorAll('select[data-custom-dropdown]').forEach(select => {
+    createOrRefreshCustomDropdown(select.id);
+  });
+  if (window.__tlDropdownBound) return;
+  // Global close on outside click
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.tl-custom-dropdown')) _closeAllCustomDropdowns();
+  });
+  // Global Escape
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') _closeAllCustomDropdowns(true);
+  });
+  window.__tlDropdownBound = true;
+}
+
+function createOrRefreshCustomDropdown(selectId) {
+  const select = document.getElementById(selectId);
+  if (!select) return;
+
+  // Hide the native select accessibly
+  select.classList.add('is-native-hidden');
+  select.setAttribute('aria-hidden', 'true');
+  select.tabIndex = -1;
+
+  // Reuse or create the wrapper div
+  let wrapper = document.querySelector(`[data-tl-dropdown-for="${selectId}"]`);
+  if (!wrapper) {
+    wrapper = document.createElement('div');
+    wrapper.className = 'tl-custom-dropdown';
+    wrapper.dataset.tlDropdownFor = selectId;
+    select.insertAdjacentElement('afterend', wrapper);
+  }
+
+  const btnId  = `${selectId}TlBtn`;
+  const menuId = `${selectId}TlMenu`;
+  const selectedOption = select.options[select.selectedIndex] || select.options[0];
+  const selectedLabel  = selectedOption ? selectedOption.textContent.trim() : (select.dataset.customDropdown || 'Select');
+  const options = Array.from(select.options);
+
+  wrapper.innerHTML = `
+    <button type="button" class="tl-dropdown-button" id="${btnId}"
+      aria-haspopup="listbox" aria-expanded="false" aria-controls="${menuId}">
+      <span class="tl-dropdown-label">${_escDd(selectedLabel)}</span>
+    </button>
+    <div class="tl-dropdown-menu" id="${menuId}" role="listbox" aria-labelledby="${btnId}">
+      ${options.map((opt, i) => `
+        <button type="button" role="option"
+          class="tl-dropdown-option${opt.value === select.value ? ' is-selected' : ''}"
+          aria-selected="${opt.value === select.value ? 'true' : 'false'}"
+          data-value="${_escAttr(opt.value)}"
+          data-index="${i}" tabindex="-1">${_escDd(opt.textContent.trim())}</button>
+      `).join('')}
+    </div>`;
+
+  // Events
+  const btn  = wrapper.querySelector('.tl-dropdown-button');
+  const opts = wrapper.querySelectorAll('.tl-dropdown-option');
+
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    _toggleCustomDropdown(wrapper);
+  });
+  btn.addEventListener('keydown', e => _btnKeydown(e, wrapper));
+
+  opts.forEach(opt => {
+    opt.addEventListener('click', e => {
+      e.stopPropagation();
+      _pickOption(wrapper, opt);
+    });
+    opt.addEventListener('keydown', e => _optKeydown(e, wrapper));
+  });
+
+  // Sync when native value changes programmatically
+  if (!select.dataset.tlBound) {
+    select.addEventListener('change', () => createOrRefreshCustomDropdown(selectId));
+    select.dataset.tlBound = 'true';
+  }
+}
+
+function _toggleCustomDropdown(wrapper) {
+  wrapper.classList.contains('is-open')
+    ? _closeCustomDropdown(wrapper, false)
+    : _openCustomDropdown(wrapper, false);
+}
+
+function _openCustomDropdown(wrapper, focusFirst) {
+  _closeAllCustomDropdowns();
+  wrapper.classList.add('is-open');
+  wrapper.querySelector('.tl-dropdown-button').setAttribute('aria-expanded', 'true');
+  const toFocus = wrapper.querySelector('.tl-dropdown-option.is-selected')
+               || wrapper.querySelector('.tl-dropdown-option');
+  if (focusFirst && toFocus) toFocus.focus();
+}
+
+function _closeCustomDropdown(wrapper, returnFocus) {
+  if (!wrapper) return;
+  wrapper.classList.remove('is-open');
+  const btn = wrapper.querySelector('.tl-dropdown-button');
+  if (btn) {
+    btn.setAttribute('aria-expanded', 'false');
+    if (returnFocus) btn.focus();
+  }
+}
+
+function _closeAllCustomDropdowns(returnFocus = false) {
+  document.querySelectorAll('.tl-custom-dropdown.is-open').forEach(w => {
+    _closeCustomDropdown(w, returnFocus);
+  });
+}
+
+function _pickOption(wrapper, opt) {
+  const selectId = wrapper.dataset.tlDropdownFor;
+  const select   = document.getElementById(selectId);
+  if (!select) return;
+  select.value = opt.dataset.value || '';
+  select.dispatchEvent(new Event('change', { bubbles: true }));
+  _closeCustomDropdown(wrapper, true);
+}
+
+function _btnKeydown(e, wrapper) {
+  if (!['Enter', ' ', 'ArrowDown', 'ArrowUp'].includes(e.key)) return;
+  e.preventDefault();
+  _openCustomDropdown(wrapper, true);
+  if (e.key === 'ArrowUp') {
+    const opts = Array.from(wrapper.querySelectorAll('.tl-dropdown-option'));
+    if (opts.length) opts[opts.length - 1].focus();
+  }
+}
+
+function _optKeydown(e, wrapper) {
+  const opts = Array.from(wrapper.querySelectorAll('.tl-dropdown-option'));
+  const idx  = opts.indexOf(document.activeElement);
+  switch (e.key) {
+    case 'ArrowDown': e.preventDefault(); opts[(idx + 1) % opts.length]?.focus(); break;
+    case 'ArrowUp':   e.preventDefault(); opts[(idx - 1 + opts.length) % opts.length]?.focus(); break;
+    case 'Home':      e.preventDefault(); opts[0]?.focus(); break;
+    case 'End':       e.preventDefault(); opts[opts.length - 1]?.focus(); break;
+    case 'Enter':
+    case ' ':         e.preventDefault(); _pickOption(wrapper, document.activeElement); break;
+    case 'Escape':    e.preventDefault(); _closeCustomDropdown(wrapper, true); break;
+  }
+}
+
+function _escDd(v)   { return String(v||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c]); }
+function _escAttr(v) { return _escDd(v).replace(/`/g,'&#96;'); }
