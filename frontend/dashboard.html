@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Candidate Rankings - TalentLens AI</title>
 <meta name="description" content="AI-ranked candidates from the stored TalentLens database."/>
-<link rel="stylesheet" href="styles.css"/>
+<link rel="stylesheet" href="styles.css?v=dropdown-fix"/>
 <style>
 .rank-page { padding: 40px 0 80px; }
 .summary-bar { display:flex; gap:16px; flex-wrap:wrap; padding:20px 24px; margin-bottom:24px; }
@@ -48,13 +48,13 @@
 
     <div class="glass filter-bar animate-slide-up delay-2">
       <div class="search-wrap"><span class="search-icon">Search</span><input type="text" id="searchInput" class="search-input" placeholder="Search candidates..." oninput="filterCandidates()"/></div>
-      <select id="filterSkill" class="filter-select" onchange="filterCandidates()"></select>
-      <select id="filterSource" class="filter-select" onchange="filterCandidates()">
+      <select id="filterSkill" class="filter-select" data-custom-dropdown="Skills" onchange="filterCandidates()"></select>
+      <select id="filterSource" class="filter-select" data-custom-dropdown="Source" onchange="filterCandidates()">
         <option value="">All Sources</option>
         <option value="Built-In">Built-In</option>
         <option value="User Added">User Added</option>
       </select>
-      <select id="filterExp" class="filter-select" onchange="filterCandidates()">
+      <select id="filterExp" class="filter-select" data-custom-dropdown="Experience" onchange="filterCandidates()">
         <option value="">Any Experience</option>
         <option value="0-4">0-4 years</option>
         <option value="4-7">4-7 years</option>
@@ -115,6 +115,169 @@ function updateSummary(data) {
 function populateSkillFilter() {
   const skills = [...new Set(activeRankings.flatMap(c => c.skills || []))].sort();
   document.getElementById('filterSkill').innerHTML = `<option value="">All Skills</option>` + skills.map(s => `<option>${s}</option>`).join('');
+}
+
+function initCustomFilterDropdowns() {
+  ['filterSkill', 'filterSource', 'filterExp'].forEach(createOrRefreshCustomFilterDropdown);
+  if (window.__talentlensFilterDropdownsBound) return;
+  document.addEventListener('click', event => {
+    if (!event.target.closest('.custom-filter-dropdown')) closeCustomFilterDropdowns();
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') closeCustomFilterDropdowns(true);
+  });
+  window.__talentlensFilterDropdownsBound = true;
+}
+
+function createOrRefreshCustomFilterDropdown(selectId) {
+  const select = document.getElementById(selectId);
+  if (!select) return;
+
+  select.classList.add('is-native-hidden');
+  select.setAttribute('aria-hidden', 'true');
+  select.tabIndex = -1;
+
+  let dropdown = document.querySelector(`[data-filter-dropdown-for="${selectId}"]`);
+  if (!dropdown) {
+    dropdown = document.createElement('div');
+    dropdown.className = 'custom-filter-dropdown';
+    dropdown.dataset.filterDropdownFor = selectId;
+    select.insertAdjacentElement('afterend', dropdown);
+  }
+
+  const buttonId = `${selectId}CustomButton`;
+  const menuId = `${selectId}CustomMenu`;
+  const selectedOption = select.options[select.selectedIndex] || select.options[0];
+  const selectedLabel = selectedOption ? selectedOption.textContent : select.dataset.customDropdown || 'Filter';
+  const options = Array.from(select.options);
+
+  dropdown.innerHTML = `
+    <button type="button" class="custom-filter-button" id="${buttonId}" aria-haspopup="listbox" aria-expanded="false" aria-controls="${menuId}">
+      <span class="custom-filter-label">${escapeFilterDropdownText(selectedLabel)}</span>
+    </button>
+    <div class="custom-filter-menu" id="${menuId}" role="listbox" aria-labelledby="${buttonId}">
+      ${options.map((option, index) => `
+        <button type="button"
+          class="custom-filter-option${option.value === select.value ? ' is-selected' : ''}"
+          role="option"
+          aria-selected="${option.value === select.value ? 'true' : 'false'}"
+          data-value="${escapeFilterDropdownAttribute(option.value)}"
+          data-index="${index}"
+          tabindex="-1">${escapeFilterDropdownText(option.textContent)}</button>
+      `).join('')}
+    </div>
+  `;
+
+  const button = dropdown.querySelector('.custom-filter-button');
+  const optionButtons = dropdown.querySelectorAll('.custom-filter-option');
+  button.addEventListener('click', event => {
+    event.stopPropagation();
+    toggleCustomFilterDropdown(dropdown, false);
+  });
+  button.addEventListener('keydown', event => handleCustomFilterButtonKeydown(event, dropdown));
+  optionButtons.forEach(optionButton => {
+    optionButton.addEventListener('click', event => {
+      event.stopPropagation();
+      selectCustomFilterOption(dropdown, optionButton);
+    });
+    optionButton.addEventListener('keydown', event => handleCustomFilterOptionKeydown(event, dropdown));
+  });
+
+  if (!select.dataset.customDropdownBound) {
+    select.addEventListener('change', () => createOrRefreshCustomFilterDropdown(selectId));
+    select.dataset.customDropdownBound = 'true';
+  }
+}
+
+function toggleCustomFilterDropdown(dropdown, focusSelected) {
+  if (dropdown.classList.contains('is-open')) {
+    closeCustomFilterDropdown(dropdown, false);
+    return;
+  }
+  openCustomFilterDropdown(dropdown, focusSelected);
+}
+
+function openCustomFilterDropdown(dropdown, focusSelected = false) {
+  closeCustomFilterDropdowns();
+  dropdown.classList.add('is-open');
+  dropdown.querySelector('.custom-filter-button').setAttribute('aria-expanded', 'true');
+  if (focusSelected) {
+    const selected = dropdown.querySelector('.custom-filter-option.is-selected') || dropdown.querySelector('.custom-filter-option');
+    if (selected) selected.focus();
+  }
+}
+
+function closeCustomFilterDropdown(dropdown, returnFocus = false) {
+  if (!dropdown) return;
+  dropdown.classList.remove('is-open');
+  const button = dropdown.querySelector('.custom-filter-button');
+  if (button) {
+    button.setAttribute('aria-expanded', 'false');
+    if (returnFocus) button.focus();
+  }
+}
+
+function closeCustomFilterDropdowns(returnFocus = false) {
+  document.querySelectorAll('.custom-filter-dropdown.is-open').forEach(dropdown => {
+    closeCustomFilterDropdown(dropdown, returnFocus);
+  });
+}
+
+function selectCustomFilterOption(dropdown, optionButton) {
+  const select = document.getElementById(dropdown.dataset.filterDropdownFor);
+  if (!select) return;
+  select.value = optionButton.dataset.value || '';
+  select.dispatchEvent(new Event('change', { bubbles: true }));
+  closeCustomFilterDropdown(dropdown, true);
+}
+
+function handleCustomFilterButtonKeydown(event, dropdown) {
+  if (!['Enter', ' ', 'ArrowDown', 'ArrowUp'].includes(event.key)) return;
+  event.preventDefault();
+  openCustomFilterDropdown(dropdown, true);
+  if (event.key === 'ArrowUp') {
+    const options = Array.from(dropdown.querySelectorAll('.custom-filter-option'));
+    const target = options[options.length - 1];
+    if (target) target.focus();
+  }
+}
+
+function handleCustomFilterOptionKeydown(event, dropdown) {
+  const options = Array.from(dropdown.querySelectorAll('.custom-filter-option'));
+  const currentIndex = options.indexOf(document.activeElement);
+  if (event.key === 'ArrowDown') {
+    event.preventDefault();
+    options[(currentIndex + 1) % options.length]?.focus();
+  } else if (event.key === 'ArrowUp') {
+    event.preventDefault();
+    options[(currentIndex - 1 + options.length) % options.length]?.focus();
+  } else if (event.key === 'Home') {
+    event.preventDefault();
+    options[0]?.focus();
+  } else if (event.key === 'End') {
+    event.preventDefault();
+    options[options.length - 1]?.focus();
+  } else if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault();
+    selectCustomFilterOption(dropdown, document.activeElement);
+  } else if (event.key === 'Escape') {
+    event.preventDefault();
+    closeCustomFilterDropdown(dropdown, true);
+  }
+}
+
+function escapeFilterDropdownText(value) {
+  return String(value || '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  })[char]);
+}
+
+function escapeFilterDropdownAttribute(value) {
+  return escapeFilterDropdownText(value).replace(/`/g, '&#96;');
 }
 
 function renderTable(data) {
@@ -214,6 +377,7 @@ function closeSidebar(event) {
 }
 
 populateSkillFilter();
+initCustomFilterDropdowns();
 renderTable(activeRankings);
 </script>
 </body>
